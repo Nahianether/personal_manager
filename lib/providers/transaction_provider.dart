@@ -180,17 +180,27 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
       final toAccount = accountNotifier.getAccountById(toAccountId);
       
       if (fromAccount != null) {
-        await accountNotifier.updateAccountBalance(
-          fromAccountId,
-          fromAccount.balance - amount,
-        );
+        double newFromBalance;
+        if (fromAccount.isCreditCard) {
+          // For credit card: transferring money out increases debt (balance)
+          newFromBalance = fromAccount.balance + amount;
+        } else {
+          // For regular accounts: transferring money out decreases balance
+          newFromBalance = fromAccount.balance - amount;
+        }
+        await accountNotifier.updateAccountBalance(fromAccountId, newFromBalance);
       }
       
       if (toAccount != null) {
-        await accountNotifier.updateAccountBalance(
-          toAccountId,
-          toAccount.balance + amount,
-        );
+        double newToBalance;
+        if (toAccount.isCreditCard) {
+          // For credit card: receiving money reduces debt (balance)
+          newToBalance = toAccount.balance - amount;
+        } else {
+          // For regular accounts: receiving money increases balance
+          newToBalance = toAccount.balance + amount;
+        }
+        await accountNotifier.updateAccountBalance(toAccountId, newToBalance);
       }
       
       state = state.copyWith(

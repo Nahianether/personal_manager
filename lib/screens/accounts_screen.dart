@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../providers/account_provider.dart';
 import '../models/account.dart';
+import 'transfer_screen.dart';
 
 class AccountsScreen extends ConsumerStatefulWidget {
   const AccountsScreen({super.key});
@@ -238,16 +239,10 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                             ),
                           ],
                         ),
-                        trailing: SizedBox(
+                        trailing: Container(
                           width: 120,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildBalanceDisplay(context, account, currencyFormatter),
-                            ],
-                          ),
+                          constraints: const BoxConstraints(maxHeight: 50),
+                          child: _buildBalanceDisplay(context, account, currencyFormatter),
                         ),
                         onTap: () => _showAccountDetails(context, account),
                       ),
@@ -259,12 +254,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: "accounts_fab",
-        onPressed: () => _showAddAccountDialog(context),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Add Account'),
-      ),
+      floatingActionButton: _buildActionButton(context),
     );
   }
 
@@ -272,6 +262,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
     if (account.isCreditCard && account.creditLimit != null) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
@@ -282,33 +273,17 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                       ? Theme.of(context).colorScheme.secondary
                       : Theme.of(context).colorScheme.error,
                 ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 2),
           Text(
             'of ${currencyFormatter.format(account.creditLimit!)}',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 11,
                 ),
-          ),
-          const SizedBox(height: 2),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-            decoration: BoxDecoration(
-              color: account.availableCredit > 0
-                  ? Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1)
-                  : Theme.of(context).colorScheme.error.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              'Available',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: account.availableCredit > 0
-                        ? Theme.of(context).colorScheme.secondary
-                        : Theme.of(context).colorScheme.error,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 10,
-                  ),
-            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       );
@@ -785,6 +760,107 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
               },
               child: const Text('Update'),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton(BuildContext context) {
+    final accountState = ref.watch(accountProvider);
+    final hasAccounts = accountState.accounts.isNotEmpty;
+
+    if (!hasAccounts) {
+      // If no accounts, only show Add Account button
+      return FloatingActionButton.extended(
+        heroTag: "accounts_fab",
+        onPressed: () => _showAddAccountDialog(context),
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Add Account'),
+      );
+    }
+
+    // If accounts exist, show menu with both options
+    return FloatingActionButton.extended(
+      heroTag: "accounts_fab",
+      onPressed: () => _showActionMenu(context),
+      icon: const Icon(Icons.more_horiz),
+      label: const Text('Actions'),
+    );
+  }
+
+  void _showActionMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outline,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Account Actions',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.add,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              title: const Text('Add Account'),
+              subtitle: const Text('Create a new account'),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () {
+                Navigator.pop(context);
+                _showAddAccountDialog(context);
+              },
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.swap_horiz,
+                  color: Colors.blue,
+                ),
+              ),
+              title: const Text('Transfer Money'),
+              subtitle: const Text('Move money between accounts'),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TransferScreen()),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
           ],
         ),
       ),

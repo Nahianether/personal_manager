@@ -16,6 +16,7 @@ import 'transactions_screen.dart';
 import 'debts_screen.dart';
 import 'settings_screen.dart';
 import 'reports_screen.dart';
+import 'transfer_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -200,7 +201,7 @@ class DashboardTab extends ConsumerWidget {
                     );
                   },
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
                 Consumer(
                   builder: (context, ref, child) {
                     final accountState = ref.watch(accountProvider);
@@ -324,12 +325,12 @@ class DashboardTab extends ConsumerWidget {
             Expanded(
               child: _buildQuickActionCard(
                 context,
-                'Manage Debts',
-                Icons.credit_card_rounded,
-                Colors.orange,
+                'Transfer Money',
+                Icons.swap_horiz_rounded,
+                Colors.blue,
                 () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const DebtsScreen()),
+                  MaterialPageRoute(builder: (_) => const TransferScreen()),
                 ),
               ),
             ),
@@ -337,12 +338,12 @@ class DashboardTab extends ConsumerWidget {
             Expanded(
               child: _buildQuickActionCard(
                 context,
-                'View Reports',
-                Icons.analytics_rounded,
-                Theme.of(context).colorScheme.tertiary,
+                'Manage Debts',
+                Icons.credit_card_rounded,
+                Colors.orange,
                 () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const ReportsScreen()),
+                  MaterialPageRoute(builder: (_) => const DebtsScreen()),
                 ),
               ),
             ),
@@ -465,6 +466,7 @@ class DashboardTab extends ConsumerWidget {
   Widget _buildRecentAccountsSection(BuildContext context, List accounts) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -490,9 +492,9 @@ class DashboardTab extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 12),
         if (accounts.isEmpty)
           Container(
+            margin: const EdgeInsets.only(top: 8),
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surfaceContainer,
@@ -500,6 +502,7 @@ class DashboardTab extends ConsumerWidget {
             ),
             child: Center(
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     Icons.account_balance_wallet_outlined,
@@ -522,14 +525,13 @@ class DashboardTab extends ConsumerWidget {
             ),
           )
         else
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: accounts.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              final account = accounts[index];
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: accounts.asMap().entries.map((entry) {
+              final index = entry.key;
+              final account = entry.value;
               return Container(
+                margin: EdgeInsets.only(top: index == 0 ? 8 : 8),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surfaceContainer,
@@ -553,6 +555,7 @@ class DashboardTab extends ConsumerWidget {
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             account.name,
@@ -580,7 +583,7 @@ class DashboardTab extends ConsumerWidget {
                   ],
                 ),
               );
-            },
+            }).toList(),
           ),
       ],
     );

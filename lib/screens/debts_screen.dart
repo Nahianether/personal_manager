@@ -91,7 +91,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
     return Consumer(
       builder: (context, ref, child) {
         final loanState = ref.watch(loanProvider);
-        
+
         if (loanState.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -130,8 +130,8 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                 Text(
                   'Add a loan to track your borrowings',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                 ),
               ],
             ),
@@ -161,7 +161,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
     return Consumer(
       builder: (context, ref, child) {
         final liabilityState = ref.watch(liabilityProvider);
-        
+
         if (liabilityState.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -200,8 +200,8 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                 Text(
                   'Add a liability to track your obligations',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                 ),
               ],
             ),
@@ -262,9 +262,9 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
               Text(
                 'Total Loans',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  fontWeight: FontWeight.w500,
-                ),
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontWeight: FontWeight.w500,
+                    ),
               ),
               Container(
                 padding: const EdgeInsets.all(8),
@@ -284,9 +284,9 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
           Text(
             currencyFormatter.format(totalLoanAmount),
             style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
           ),
           const SizedBox(height: 8),
           Row(
@@ -298,15 +298,15 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                     Text(
                       'Active',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.8),
-                      ),
+                            color: Colors.white.withValues(alpha: 0.8),
+                          ),
                     ),
                     Text(
                       '$activeLoans loans',
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                     ),
                   ],
                 ),
@@ -318,15 +318,15 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                     Text(
                       'Completed',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.8),
-                      ),
+                            color: Colors.white.withValues(alpha: 0.8),
+                          ),
                     ),
                     Text(
                       '$completedLoans loans',
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                     ),
                   ],
                 ),
@@ -373,9 +373,9 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
               Text(
                 'Total Liabilities',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  fontWeight: FontWeight.w500,
-                ),
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontWeight: FontWeight.w500,
+                    ),
               ),
               Container(
                 padding: const EdgeInsets.all(8),
@@ -395,9 +395,9 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
           Text(
             currencyFormatter.format(totalLiabilityAmount),
             style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
           ),
           const SizedBox(height: 8),
           Row(
@@ -409,15 +409,15 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                     Text(
                       'Overdue',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.8),
-                      ),
+                            color: Colors.white.withValues(alpha: 0.8),
+                          ),
                     ),
                     Text(
                       '$overdueItems items',
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                     ),
                   ],
                 ),
@@ -429,15 +429,15 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                     Text(
                       'Upcoming',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.8),
-                      ),
+                            color: Colors.white.withValues(alpha: 0.8),
+                          ),
                     ),
                     Text(
                       '$upcomingItems items',
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                     ),
                   ],
                 ),
@@ -482,14 +482,14 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                       Text(
                         loan.name,
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                              fontWeight: FontWeight.bold,
+                            ),
                       ),
                       Text(
                         '${loan.interestRate}% interest • ${loan.type.toString().split('.').last.toUpperCase()}',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
                       ),
                     ],
                   ),
@@ -500,9 +500,9 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                     Text(
                       currencyFormatter.format(loan.remainingAmount),
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Colors.orange,
-                        fontWeight: FontWeight.bold,
-                      ),
+                            color: Colors.orange,
+                            fontWeight: FontWeight.bold,
+                          ),
                     ),
                     Text(
                       'of ${currencyFormatter.format(loan.totalAmount)}',
@@ -526,8 +526,8 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                     Text(
                       '${(progress * 100).toStringAsFixed(1)}% paid',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
                     ),
                   ],
                 ),
@@ -544,8 +544,8 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
               Text(
                 loan.description!,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
               ),
             ],
             const SizedBox(height: 12),
@@ -603,18 +603,18 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: isOverdue 
+                    color: isOverdue
                         ? Colors.red.withValues(alpha: 0.1)
-                        : daysUntilDue <= 7 
+                        : daysUntilDue <= 7
                             ? Colors.orange.withValues(alpha: 0.1)
                             : Colors.blue.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
                     isOverdue ? Icons.warning : Icons.assignment,
-                    color: isOverdue 
+                    color: isOverdue
                         ? Colors.red
-                        : daysUntilDue <= 7 
+                        : daysUntilDue <= 7
                             ? Colors.orange
                             : Colors.blue,
                     size: 24,
@@ -628,14 +628,14 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                       Text(
                         liability.name,
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                              fontWeight: FontWeight.bold,
+                            ),
                       ),
                       Text(
                         liability.type.toString().split('.').last.toUpperCase(),
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
                       ),
                     ],
                   ),
@@ -643,9 +643,9 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                 Text(
                   currencyFormatter.format(liability.amount),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: isOverdue ? Colors.red : Colors.blue,
-                    fontWeight: FontWeight.bold,
-                  ),
+                        color: isOverdue ? Colors.red : Colors.blue,
+                        fontWeight: FontWeight.bold,
+                      ),
                 ),
               ],
             ),
@@ -653,9 +653,9 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: isOverdue 
+                color: isOverdue
                     ? Colors.red.withValues(alpha: 0.1)
-                    : daysUntilDue <= 7 
+                    : daysUntilDue <= 7
                         ? Colors.orange.withValues(alpha: 0.1)
                         : Colors.green.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
@@ -665,9 +665,9 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                   Icon(
                     Icons.calendar_today,
                     size: 16,
-                    color: isOverdue 
+                    color: isOverdue
                         ? Colors.red
-                        : daysUntilDue <= 7 
+                        : daysUntilDue <= 7
                             ? Colors.orange
                             : Colors.green,
                   ),
@@ -675,38 +675,38 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                   Text(
                     'Due: ${DateFormat('dd MMM yyyy').format(liability.dueDate)}',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: isOverdue 
-                          ? Colors.red
-                          : daysUntilDue <= 7 
-                              ? Colors.orange
-                              : Colors.green,
-                      fontWeight: FontWeight.w500,
-                    ),
+                          color: isOverdue
+                              ? Colors.red
+                              : daysUntilDue <= 7
+                                  ? Colors.orange
+                                  : Colors.green,
+                          fontWeight: FontWeight.w500,
+                        ),
                   ),
                   const Spacer(),
                   if (isOverdue)
                     Text(
                       'OVERDUE',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.red,
-                        fontWeight: FontWeight.bold,
-                      ),
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                          ),
                     )
                   else if (daysUntilDue <= 7)
                     Text(
                       'Due in $daysUntilDue days',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.orange,
-                        fontWeight: FontWeight.bold,
-                      ),
+                            color: Colors.orange,
+                            fontWeight: FontWeight.bold,
+                          ),
                     )
                   else
                     Text(
                       'Due in $daysUntilDue days',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.green,
-                        fontWeight: FontWeight.w500,
-                      ),
+                            color: Colors.green,
+                            fontWeight: FontWeight.w500,
+                          ),
                     ),
                 ],
               ),
@@ -716,8 +716,8 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
               Text(
                 liability.description!,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
               ),
             ],
             const SizedBox(height: 8),
@@ -741,16 +741,268 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
   }
 
   void _showAddLoanDialog(BuildContext context) {
-    // Navigate to loan addition screen - you can implement this based on your existing loan screen
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Add Loan functionality - implement based on existing loan screen')),
+    final nameController = TextEditingController();
+    final principalController = TextEditingController();
+    final interestRateController = TextEditingController();
+    final descriptionController = TextEditingController();
+    LoanType selectedType = LoanType.personal;
+    DateTime selectedStartDate = DateTime.now();
+    DateTime? selectedEndDate;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Add Loan'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Loan Name',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<LoanType>(
+                  value: selectedType,
+                  decoration: const InputDecoration(
+                    labelText: 'Loan Type',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: LoanType.values.map((type) {
+                    return DropdownMenuItem(
+                      value: type,
+                      child: Text(_getLoanTypeText(type)),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      selectedType = value!;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: principalController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Principal Amount',
+                    border: OutlineInputBorder(),
+                    prefixText: '৳ ',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: interestRateController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Interest Rate (%)',
+                    border: OutlineInputBorder(),
+                    suffixText: '%',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  title: const Text('Start Date'),
+                  subtitle: Text(DateFormat('dd/MM/yyyy').format(selectedStartDate)),
+                  trailing: const Icon(Icons.calendar_today),
+                  onTap: () async {
+                    final date = await showDatePicker(
+                      context: context,
+                      initialDate: selectedStartDate,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2100),
+                    );
+                    if (date != null) {
+                      setState(() {
+                        selectedStartDate = date;
+                      });
+                    }
+                  },
+                ),
+                ListTile(
+                  title: const Text('End Date (optional)'),
+                  subtitle:
+                      Text(selectedEndDate != null ? DateFormat('dd/MM/yyyy').format(selectedEndDate!) : 'Not set'),
+                  trailing: const Icon(Icons.calendar_today),
+                  onTap: () async {
+                    final date = await showDatePicker(
+                      context: context,
+                      initialDate: selectedEndDate ?? DateTime.now().add(const Duration(days: 365)),
+                      firstDate: selectedStartDate,
+                      lastDate: DateTime(2100),
+                    );
+                    if (date != null) {
+                      setState(() {
+                        selectedEndDate = date;
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(
+                    labelText: 'Description (optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final name = nameController.text.trim();
+                final principal = double.tryParse(principalController.text) ?? 0.0;
+                final interestRate = double.tryParse(interestRateController.text) ?? 0.0;
+                final description = descriptionController.text.trim();
+
+                if (name.isNotEmpty && principal > 0) {
+                  ref.read(loanProvider.notifier).addLoan(
+                        name: name,
+                        type: selectedType,
+                        principal: principal,
+                        interestRate: interestRate,
+                        startDate: selectedStartDate,
+                        endDate: selectedEndDate,
+                        description: description.isNotEmpty ? description : null,
+                      );
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Loan added successfully!')),
+                  );
+                }
+              },
+              child: const Text('Add Loan'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   void _showAddLiabilityDialog(BuildContext context) {
-    // Navigate to liability addition screen - you can implement this based on your existing liability screen
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Add Liability functionality - implement based on existing liability screen')),
+    final nameController = TextEditingController();
+    final amountController = TextEditingController();
+    final descriptionController = TextEditingController();
+    LiabilityType selectedType = LiabilityType.bill;
+    DateTime selectedDueDate = DateTime.now().add(const Duration(days: 30));
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Add Liability'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Liability Name',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<LiabilityType>(
+                  value: selectedType,
+                  decoration: const InputDecoration(
+                    labelText: 'Liability Type',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: LiabilityType.values.map((type) {
+                    return DropdownMenuItem(
+                      value: type,
+                      child: Text(_getLiabilityTypeText(type)),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      selectedType = value!;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: amountController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Amount',
+                    border: OutlineInputBorder(),
+                    prefixText: '৳ ',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  title: const Text('Due Date'),
+                  subtitle: Text(DateFormat('dd/MM/yyyy').format(selectedDueDate)),
+                  trailing: const Icon(Icons.calendar_today),
+                  onTap: () async {
+                    final date = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDueDate,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime(2100),
+                    );
+                    if (date != null) {
+                      setState(() {
+                        selectedDueDate = date;
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(
+                    labelText: 'Description (optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final name = nameController.text.trim();
+                final amount = double.tryParse(amountController.text) ?? 0.0;
+                final description = descriptionController.text.trim();
+
+                if (name.isNotEmpty && amount > 0) {
+                  ref.read(liabilityProvider.notifier).addLiability(
+                        name: name,
+                        type: selectedType,
+                        amount: amount,
+                        dueDate: selectedDueDate,
+                        description: description.isNotEmpty ? description : null,
+                      );
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Liability added successfully!')),
+                  );
+                }
+              },
+              child: const Text('Add Liability'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -804,5 +1056,39 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
         ],
       ),
     );
+  }
+
+  String _getLoanTypeText(LoanType type) {
+    switch (type) {
+      case LoanType.personal:
+        return 'Personal Loan';
+      case LoanType.home:
+        return 'Home Loan';
+      case LoanType.car:
+        return 'Car Loan';
+      case LoanType.education:
+        return 'Education Loan';
+      case LoanType.business:
+        return 'Business Loan';
+      case LoanType.other:
+        return 'Other';
+    }
+  }
+
+  String _getLiabilityTypeText(LiabilityType type) {
+    switch (type) {
+      case LiabilityType.bill:
+        return 'Bill';
+      case LiabilityType.debt:
+        return 'Debt';
+      case LiabilityType.tax:
+        return 'Tax';
+      case LiabilityType.insurance:
+        return 'Insurance';
+      case LiabilityType.subscription:
+        return 'Subscription';
+      case LiabilityType.other:
+        return 'Other';
+    }
   }
 }

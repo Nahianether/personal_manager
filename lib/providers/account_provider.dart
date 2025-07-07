@@ -28,9 +28,10 @@ class AccountState {
 
   double get totalBalance {
     return accounts.fold(0.0, (sum, account) {
-      if (account.isCreditCard) {
-        // For credit cards, subtract the debt (negative contribution to net worth)
-        return sum - account.balance;
+      if (account.isCreditCard && account.creditLimit != null) {
+        // For credit cards, add available credit (limit - spent amount)
+        final availableCredit = account.creditLimit! - account.balance;
+        return sum + availableCredit;
       } else {
         // For regular accounts, add the balance
         return sum + account.balance;
