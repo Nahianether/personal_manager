@@ -45,5 +45,57 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs access to photo library to import/export Excel files</string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs access to camera to import files</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app needs access to microphone</string>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>This app needs access to music library</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app needs access to location when in use</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>This app needs access to location always</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>This app needs access to bluetooth</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>This app needs access to bluetooth</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>This app needs access to calendar</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>This app needs access to reminders</string>
+	<key>NSContactsUsageDescription</key>
+	<string>This app needs access to contacts</string>
+	<key>NSMotionUsageDescription</key>
+	<string>This app needs access to motion</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>This app needs access to speech recognition</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>This app needs access to Documents folder to import/export Excel files</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>This app needs access to Downloads folder to export Excel files</string>
+	<key>UISupportsDocumentBrowser</key>
+	<true/>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>org.openxmlformats.spreadsheetml.sheet</string>
+			<key>UTTypeDescription</key>
+			<string>Excel spreadsheet</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>xlsx</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
 </dict>
 </plist>

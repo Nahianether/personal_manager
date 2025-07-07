@@ -539,4 +539,96 @@ class DatabaseService {
       'createdAt': maps[0]['created_at'],
     });
   }
+
+  // Delete all user data from database
+  Future<void> deleteAllData() async {
+    final db = await database;
+    await db.transaction((txn) async {
+      // Delete all transactions first (due to foreign key constraint)
+      await txn.delete('transactions');
+      
+      // Delete all accounts
+      await txn.delete('accounts');
+      
+      // Delete all loans
+      await txn.delete('loans');
+      
+      // Delete all liabilities
+      await txn.delete('liabilities');
+      
+      // Delete all custom categories (keep default ones)
+      await txn.delete('categories', where: 'is_default = 0');
+    });
+  }
+
+  // Export all data to a structured map for Excel export
+  Future<Map<String, List<Map<String, dynamic>>>> exportAllData() async {
+    final db = await database;
+    
+    // Get all data from all tables
+    final accounts = await db.query('accounts');
+    final transactions = await db.query('transactions');
+    final loans = await db.query('loans');
+    final liabilities = await db.query('liabilities');
+    final categories = await db.query('categories');
+    
+    return {
+      'Accounts': accounts,
+      'Transactions': transactions,
+      'Loans': loans,
+      'Liabilities': liabilities,
+      'Categories': categories,
+    };
+  }
+
+  // Import data from structured map (from Excel import)
+  Future<void> importAllData(Map<String, List<Map<String, dynamic>>> data) async {
+    final db = await database;
+    
+    await db.transaction((txn) async {
+      // Clear existing data first
+      await txn.delete('transactions');
+      await txn.delete('accounts');
+      await txn.delete('loans');
+      await txn.delete('liabilities');
+      await txn.delete('categories', where: 'is_default = 0');
+      
+      // Import accounts
+      if (data['Accounts'] != null) {
+        for (final account in data['Accounts']!) {
+          await txn.insert('accounts', account, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      }
+      
+      // Import transactions
+      if (data['Transactions'] != null) {
+        for (final transaction in data['Transactions']!) {
+          await txn.insert('transactions', transaction, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      }
+      
+      // Import loans
+      if (data['Loans'] != null) {
+        for (final loan in data['Loans']!) {
+          await txn.insert('loans', loan, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      }
+      
+      // Import liabilities
+      if (data['Liabilities'] != null) {
+        for (final liability in data['Liabilities']!) {
+          await txn.insert('liabilities', liability, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      }
+      
+      // Import custom categories only
+      if (data['Categories'] != null) {
+        for (final category in data['Categories']!) {
+          if (category['is_default'] == 0) {
+            await txn.insert('categories', category, conflictAlgorithm: ConflictAlgorithm.replace);
+          }
+        }
+      }
+    });
+  }
 }

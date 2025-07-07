@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/theme_provider.dart';
+import '../providers/account_provider.dart';
+import '../providers/transaction_provider.dart';
+import '../providers/loan_provider.dart';
+import '../providers/liability_provider.dart';
+import '../providers/category_provider.dart';
+import '../services/database_service.dart';
+import '../services/excel_service.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -118,6 +125,46 @@ class SettingsScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
+                    'Data Management',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildActionRow(
+                    context,
+                    Icons.file_download_outlined,
+                    'Export Data',
+                    'Export all data to Excel file',
+                    () => _exportData(context, ref),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildActionRow(
+                    context,
+                    Icons.file_upload_outlined,
+                    'Import Data',
+                    'Import data from Excel file',
+                    () => _importData(context, ref),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildActionRow(
+                    context,
+                    Icons.delete_forever_outlined,
+                    'Delete All Data',
+                    'Permanently delete all your data',
+                    () => _showDeleteAllDataDialog(context, ref),
+                    isDestructive: true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
                     'Support',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
@@ -194,8 +241,9 @@ class SettingsScreen extends ConsumerWidget {
     IconData icon,
     String title,
     String subtitle,
-    VoidCallback onTap,
-  ) {
+    VoidCallback onTap, {
+    bool isDestructive = false,
+  }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -206,13 +254,17 @@ class SettingsScreen extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                color: isDestructive 
+                    ? Theme.of(context).colorScheme.errorContainer
+                    : Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
                 icon,
                 size: 20,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                color: isDestructive
+                    ? Theme.of(context).colorScheme.error
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(width: 12),
@@ -222,11 +274,17 @@ class SettingsScreen extends ConsumerWidget {
                 children: [
                   Text(
                     title,
-                    style: Theme.of(context).textTheme.bodyLarge,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: isDestructive ? Theme.of(context).colorScheme.error : null,
+                    ),
                   ),
                   Text(
                     subtitle,
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: isDestructive 
+                          ? Theme.of(context).colorScheme.error
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -295,6 +353,231 @@ class SettingsScreen extends ConsumerWidget {
         return 'Always use dark theme';
       case AppTheme.auto:
         return 'Follow system setting';
+    }
+  }
+
+  void _showDeleteAllDataDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete All Data'),
+        content: const Text(
+          'Are you sure you want to delete ALL your data?\n\n'
+          'This will permanently remove:\n'
+          '• All accounts\n'
+          '• All transactions\n'
+          '• All loans\n'
+          '• All liabilities\n'
+          '• All custom categories\n\n'
+          'This action cannot be undone!'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteAllData(context, ref);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Delete All'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteAllData(BuildContext context, WidgetRef ref) async {
+    if (!context.mounted) return;
+    
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Deleting all data...'),
+            ],
+          ),
+        ),
+      );
+
+      // Delete all data from database
+      await DatabaseService().deleteAllData();
+
+      // Refresh all providers
+      ref.invalidate(accountProvider);
+      ref.invalidate(transactionProvider);
+      ref.invalidate(loanProvider);
+      ref.invalidate(liabilityProvider);
+      ref.invalidate(categoryProvider);
+
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('All data deleted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting data: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportData(BuildContext context, WidgetRef ref) async {
+    if (!context.mounted) return;
+    
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Exporting data...'),
+            ],
+          ),
+        ),
+      );
+
+      final success = await ExcelService().exportToExcel();
+
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Data exported successfully to Downloads folder'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Failed to export data'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export error: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _importData(BuildContext context, WidgetRef ref) async {
+    if (!context.mounted) return;
+    
+    try {
+      // Show confirmation dialog
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Import Data'),
+          content: const Text(
+            'Importing data will replace ALL existing data.\n\n'
+            'Make sure you have a backup before proceeding.\n\n'
+            'Do you want to continue?'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Import'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true || !context.mounted) return;
+
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Importing data...'),
+            ],
+          ),
+        ),
+      );
+
+      final success = await ExcelService().importFromExcel();
+
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+
+        if (success) {
+          // Refresh all providers
+          ref.invalidate(accountProvider);
+          ref.invalidate(transactionProvider);
+          ref.invalidate(loanProvider);
+          ref.invalidate(liabilityProvider);
+          ref.invalidate(categoryProvider);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Data imported successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Failed to import data. Please check file format.'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Import error: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
     }
   }
 }
