@@ -23,7 +23,6 @@ class ReportsScreen extends ConsumerStatefulWidget {
 class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   ReportPeriod _selectedPeriod = ReportPeriod.monthly;
   DateTime _selectedDate = DateTime.now();
-  int _selectedTabIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -35,9 +34,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         appBar: AppBar(
           title: const Text('Financial Reports'),
           centerTitle: true,
-          bottom: TabBar(
-            onTap: (index) => setState(() => _selectedTabIndex = index),
-            tabs: const [
+          bottom: const TabBar(
+            tabs: [
               Tab(icon: Icon(Icons.bar_chart), text: 'Overview'),
               Tab(icon: Icon(Icons.receipt_long), text: 'Transactions'),
               Tab(icon: Icon(Icons.account_balance_wallet), text: 'Accounts'),
@@ -426,7 +424,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                             LinearProgressIndicator(
                               value: percentage / 100,
                               backgroundColor: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                              valueColor: const AlwaysStoppedAnimation<Color>(Colors.red),
                             ),
                           ],
                         ),
@@ -891,9 +889,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   }
 
   Widget _buildLoansSummary(List<Loan> loans, List<Liability> liabilities, NumberFormat currencyFormatter) {
-    final totalLoanAmount = loans.fold(0.0, (sum, loan) => sum + loan.remainingAmount);
+    final totalLoanAmount = loans.fold(0.0, (sum, loan) => sum + (loan.isReturned ? 0.0 : loan.amount));
     final totalLiabilityAmount = liabilities.fold(0.0, (sum, liability) => sum + liability.amount);
-    final activeLoans = loans.where((l) => l.status.name == 'active').length;
+    final activeLoans = loans.where((l) => !l.isReturned).length;
     final overdueItems = liabilities.where((l) => l.dueDate.isBefore(DateTime.now())).length;
 
     return Container(
@@ -963,7 +961,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       );
     }
 
-    final totalLoanAmount = loans.fold(0.0, (sum, loan) => sum + loan.remainingAmount);
+    final totalLoanAmount = loans.fold(0.0, (sum, loan) => sum + (loan.isReturned ? 0.0 : loan.amount));
     final totalLiabilityAmount = liabilities.fold(0.0, (sum, liability) => sum + liability.amount);
 
     return Container(
@@ -1045,18 +1043,18 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             separatorBuilder: (context, index) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final loan = loans[index];
-              final progress = (loan.totalAmount - loan.remainingAmount) / loan.totalAmount;
+              final progress = loan.isReturned ? 1.0 : 0.0;
               
               return ListTile(
-                leading: CircleAvatar(
+                leading: const CircleAvatar(
                   backgroundColor: Colors.orange,
-                  child: const Icon(Icons.trending_up, color: Colors.white),
+                  child: Icon(Icons.trending_up, color: Colors.white),
                 ),
-                title: Text(loan.name),
+                title: Text('Loan to ${loan.personName}'),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('${loan.interestRate}% interest'),
+                    Text('Due: ${loan.returnDate != null ? DateFormat('dd MMM yyyy').format(loan.returnDate!) : 'No due date'}'),
                     const SizedBox(height: 4),
                     LinearProgressIndicator(
                       value: progress,
@@ -1072,11 +1070,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      currencyFormatter.format(loan.remainingAmount),
+                      currencyFormatter.format(loan.isReturned ? 0.0 : loan.amount),
                       style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
                     ),
                     Text(
-                      'of ${currencyFormatter.format(loan.totalAmount)}',
+                      'of ${currencyFormatter.format(loan.amount)}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
@@ -1133,14 +1131,14 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                     color: Colors.white,
                   ),
                 ),
-                title: Text(liability.name),
+                title: Text(liability.personName),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(liability.type.toString().split('.').last.toUpperCase()),
+                    Text(liability.description ?? 'Personal Liability'),
                     Text('Due: ${DateFormat('dd MMM yyyy').format(liability.dueDate)}'),
                     if (isOverdue)
-                      Text(
+                      const Text(
                         'OVERDUE',
                         style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
                       ),
@@ -1162,7 +1160,6 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   }
 
   List<Transaction> _getFilteredTransactions(List<Transaction> transactions) {
-    final now = DateTime.now();
     DateTime startDate;
     DateTime endDate;
 

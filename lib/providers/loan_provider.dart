@@ -28,12 +28,14 @@ class LoanState {
 
   double get totalLoanAmount {
     return loans
-        .where((loan) => loan.status == LoanStatus.active)
-        .fold(0.0, (sum, loan) => sum + loan.remainingAmount);
+        .where((loan) => !loan.isReturned)
+        .fold(0.0, (sum, loan) => sum + loan.amount);
   }
 
-  double get totalPaidAmount {
-    return loans.fold(0.0, (sum, loan) => sum + loan.paidAmount);
+  double get totalReturnedAmount {
+    return loans
+        .where((loan) => loan.isReturned)
+        .fold(0.0, (sum, loan) => sum + loan.amount);
   }
 }
 
@@ -54,30 +56,22 @@ class LoanNotifier extends StateNotifier<LoanState> {
   }
 
   Future<void> addLoan({
-    required String name,
-    required LoanType type,
-    required double principal,
-    required double interestRate,
-    required DateTime startDate,
-    DateTime? endDate,
+    required String personName,
+    required double amount,
+    required DateTime loanDate,
+    DateTime? returnDate,
     String currency = 'BDT',
     String? description,
   }) async {
     try {
-      final totalAmount = principal + (principal * interestRate / 100);
-      
       final loan = Loan(
         id: const Uuid().v4(),
-        name: name,
-        type: type,
-        principal: principal,
-        interestRate: interestRate,
-        remainingAmount: totalAmount,
-        totalAmount: totalAmount,
+        personName: personName,
+        amount: amount,
         currency: currency,
-        startDate: startDate,
-        endDate: endDate,
-        status: LoanStatus.active,
+        loanDate: loanDate,
+        returnDate: returnDate,
+        isReturned: false,
         description: description,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
@@ -93,17 +87,16 @@ class LoanNotifier extends StateNotifier<LoanState> {
     }
   }
 
-  Future<void> makePayment(String loanId, double amount) async {
+  Future<void> markLoanAsReturned(String loanId, DateTime returnDate) async {
     try {
       final loanIndex = state.loans.indexWhere((loan) => loan.id == loanId);
       if (loanIndex == -1) return;
 
       final loan = state.loans[loanIndex];
-      final newRemainingAmount = loan.remainingAmount - amount;
       
       final updatedLoan = loan.copyWith(
-        remainingAmount: newRemainingAmount > 0 ? newRemainingAmount : 0,
-        status: newRemainingAmount <= 0 ? LoanStatus.completed : LoanStatus.active,
+        isReturned: true,
+        returnDate: returnDate,
         updatedAt: DateTime.now(),
       );
 
@@ -138,15 +131,16 @@ class LoanNotifier extends StateNotifier<LoanState> {
   }
 
   List<Loan> getActiveLoans() {
-    return state.loans.where((loan) => loan.status == LoanStatus.active).toList();
+    return state.loans.where((loan) => !loan.isReturned).toList();
   }
 
-  List<Loan> getCompletedLoans() {
-    return state.loans.where((loan) => loan.status == LoanStatus.completed).toList();
+  List<Loan> getReturnedLoans() {
+    return state.loans.where((loan) => loan.isReturned).toList();
   }
 
-  List<Loan> getLoansByType(LoanType type) {
-    return state.loans.where((loan) => loan.type == type).toList();
+  List<Loan> getAllLoansGiven() {
+    // Since we simplified the model, all loans are given by the user to other people
+    return state.loans;
   }
 
   Future<void> deleteLoan(String loanId) async {

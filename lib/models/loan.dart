@@ -1,31 +1,23 @@
 class Loan {
   final String id;
-  final String name;
-  final LoanType type;
-  final double principal;
-  final double interestRate;
-  final double remainingAmount;
-  final double totalAmount;
+  final String personName; // Person who received the loan from you
+  final double amount;
   final String currency;
-  final DateTime startDate;
-  final DateTime? endDate;
-  final LoanStatus status;
+  final DateTime loanDate;
+  final DateTime? returnDate;
+  final bool isReturned;
   final String? description;
   final DateTime createdAt;
   final DateTime updatedAt;
 
   Loan({
     required this.id,
-    required this.name,
-    required this.type,
-    required this.principal,
-    required this.interestRate,
-    required this.remainingAmount,
-    required this.totalAmount,
+    required this.personName,
+    required this.amount,
     this.currency = 'BDT',
-    required this.startDate,
-    this.endDate,
-    required this.status,
+    required this.loanDate,
+    this.returnDate,
+    this.isReturned = false,
     this.description,
     required this.createdAt,
     required this.updatedAt,
@@ -34,20 +26,12 @@ class Loan {
   factory Loan.fromJson(Map<String, dynamic> json) {
     return Loan(
       id: json['id'],
-      name: json['name'],
-      type: LoanType.values.firstWhere(
-        (e) => e.toString().split('.').last == json['type'],
-      ),
-      principal: json['principal'].toDouble(),
-      interestRate: json['interestRate'].toDouble(),
-      remainingAmount: json['remainingAmount'].toDouble(),
-      totalAmount: json['totalAmount'].toDouble(),
+      personName: json['personName'] ?? json['borrowerName'] ?? '', // Handle legacy data
+      amount: json['amount'].toDouble(),
       currency: json['currency'] ?? 'BDT',
-      startDate: DateTime.parse(json['startDate']),
-      endDate: json['endDate'] != null ? DateTime.parse(json['endDate']) : null,
-      status: LoanStatus.values.firstWhere(
-        (e) => e.toString().split('.').last == json['status'],
-      ),
+      loanDate: DateTime.parse(json['loanDate']),
+      returnDate: json['returnDate'] != null ? DateTime.parse(json['returnDate']) : null,
+      isReturned: json['isReturned'] ?? false,
       description: json['description'],
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
@@ -57,16 +41,12 @@ class Loan {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'name': name,
-      'type': type.toString().split('.').last,
-      'principal': principal,
-      'interestRate': interestRate,
-      'remainingAmount': remainingAmount,
-      'totalAmount': totalAmount,
+      'personName': personName,
+      'amount': amount,
       'currency': currency,
-      'startDate': startDate.toIso8601String(),
-      'endDate': endDate?.toIso8601String(),
-      'status': status.toString().split('.').last,
+      'loanDate': loanDate.toIso8601String(),
+      'returnDate': returnDate?.toIso8601String(),
+      'isReturned': isReturned,
       'description': description,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -75,55 +55,28 @@ class Loan {
 
   Loan copyWith({
     String? id,
-    String? name,
-    LoanType? type,
-    double? principal,
-    double? interestRate,
-    double? remainingAmount,
-    double? totalAmount,
+    String? personName,
+    double? amount,
     String? currency,
-    DateTime? startDate,
-    DateTime? endDate,
-    LoanStatus? status,
+    DateTime? loanDate,
+    DateTime? returnDate,
+    bool? isReturned,
     String? description,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
     return Loan(
       id: id ?? this.id,
-      name: name ?? this.name,
-      type: type ?? this.type,
-      principal: principal ?? this.principal,
-      interestRate: interestRate ?? this.interestRate,
-      remainingAmount: remainingAmount ?? this.remainingAmount,
-      totalAmount: totalAmount ?? this.totalAmount,
+      personName: personName ?? this.personName,
+      amount: amount ?? this.amount,
       currency: currency ?? this.currency,
-      startDate: startDate ?? this.startDate,
-      endDate: endDate ?? this.endDate,
-      status: status ?? this.status,
+      loanDate: loanDate ?? this.loanDate,
+      returnDate: returnDate ?? this.returnDate,
+      isReturned: isReturned ?? this.isReturned,
       description: description ?? this.description,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
-  double get interestAmount => totalAmount - principal;
-  double get paidAmount => totalAmount - remainingAmount;
-  double get progressPercentage => (paidAmount / totalAmount) * 100;
-}
-
-enum LoanType {
-  personal,
-  home,
-  car,
-  education,
-  business,
-  other,
-}
-
-enum LoanStatus {
-  active,
-  completed,
-  defaulted,
-  cancelled,
 }

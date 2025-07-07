@@ -61,20 +61,20 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: ExpansionTile(
                   leading: CircleAvatar(
-                    backgroundColor: _getLoanStatusColor(loan.status),
+                    backgroundColor: loan.isReturned ? Colors.green : Colors.orange,
                     child: Icon(
-                      _getLoanIcon(loan.type),
+                      loan.isReturned ? Icons.check_circle : Icons.trending_up,
                       color: Colors.white,
                     ),
                   ),
-                  title: Text(loan.name),
+                  title: Text('Loan to ${loan.personName}'),
                   subtitle: Text(
-                    '${_getLoanTypeText(loan.type)} • ${_getLoanStatusText(loan.status)}',
+                    loan.isReturned ? 'RETURNED' : 'OUTSTANDING',
                   ),
                   trailing: Text(
-                    currencyFormatter.format(loan.remainingAmount),
+                    currencyFormatter.format(loan.amount),
                     style: TextStyle(
-                      color: _getLoanStatusColor(loan.status),
+                      color: loan.isReturned ? Colors.green : Colors.orange,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -87,28 +87,30 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('Principal: ${currencyFormatter.format(loan.principal)}'),
-                              Text('Interest Rate: ${loan.interestRate}%'),
+                              Text('Amount: ${currencyFormatter.format(loan.amount)}'),
+                              Text('Loan Date: ${DateFormat('dd/MM/yyyy').format(loan.loanDate)}'),
                             ],
                           ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('Total Amount: ${currencyFormatter.format(loan.totalAmount)}'),
-                              Text('Paid: ${currencyFormatter.format(loan.paidAmount)}'),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text('Progress: ${loan.progressPercentage.toStringAsFixed(1)}%'),
-                          const SizedBox(height: 8),
-                          LinearProgressIndicator(
-                            value: loan.progressPercentage / 100,
-                            backgroundColor: Colors.grey[300],
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              _getLoanStatusColor(loan.status),
+                          if (loan.returnDate != null) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('Return Date: ${DateFormat('dd/MM/yyyy').format(loan.returnDate!)}'),
+                                Text(
+                                  'Status: ${loan.isReturned ? 'RETURNED' : 'OUTSTANDING'}',
+                                  style: TextStyle(
+                                    color: loan.isReturned ? Colors.green : Colors.orange,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
+                          ],
+                          if (loan.description != null && loan.description!.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Text('Description: ${loan.description}'),
+                          ],
                           const SizedBox(height: 16),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.end,
@@ -121,11 +123,11 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
                                   foregroundColor: Colors.red,
                                 ),
                               ),
-                              if (loan.status == LoanStatus.active) ...[
+                              if (!loan.isReturned) ...[
                                 const SizedBox(width: 8),
                                 TextButton(
-                                  onPressed: () => _showPaymentDialog(context, loan),
-                                  child: const Text('Make Payment'),
+                                  onPressed: () => _showMarkReturnedDialog(context, loan),
+                                  child: const Text('Mark Returned'),
                                 ),
                               ],
                             ],
@@ -148,74 +150,92 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
     );
   }
 
-  Color _getLoanStatusColor(LoanStatus status) {
-    switch (status) {
-      case LoanStatus.active:
-        return Colors.orange;
-      case LoanStatus.completed:
-        return Colors.green;
-      case LoanStatus.defaulted:
-        return Colors.red;
-      case LoanStatus.cancelled:
-        return Colors.grey;
-    }
+  void _showDeleteLoanDialog(BuildContext context, Loan loan) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Loan'),
+        content: Text('Are you sure you want to delete loan to "${loan.personName}"?\n\nThis action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              ref.read(loanProvider.notifier).deleteLoan(loan.id);
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Loan deleted successfully')),
+              );
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
   }
 
-  IconData _getLoanIcon(LoanType type) {
-    switch (type) {
-      case LoanType.personal:
-        return Icons.person;
-      case LoanType.home:
-        return Icons.home;
-      case LoanType.car:
-        return Icons.directions_car;
-      case LoanType.education:
-        return Icons.school;
-      case LoanType.business:
-        return Icons.business;
-      case LoanType.other:
-        return Icons.help_outline;
-    }
-  }
-
-  String _getLoanTypeText(LoanType type) {
-    switch (type) {
-      case LoanType.personal:
-        return 'Personal';
-      case LoanType.home:
-        return 'Home';
-      case LoanType.car:
-        return 'Car';
-      case LoanType.education:
-        return 'Education';
-      case LoanType.business:
-        return 'Business';
-      case LoanType.other:
-        return 'Other';
-    }
-  }
-
-  String _getLoanStatusText(LoanStatus status) {
-    switch (status) {
-      case LoanStatus.active:
-        return 'Active';
-      case LoanStatus.completed:
-        return 'Completed';
-      case LoanStatus.defaulted:
-        return 'Defaulted';
-      case LoanStatus.cancelled:
-        return 'Cancelled';
-    }
+  void _showMarkReturnedDialog(BuildContext context, Loan loan) {
+    DateTime returnDate = DateTime.now();
+    
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Mark Loan as Returned'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Mark loan to "${loan.personName}" as returned?'),
+              const SizedBox(height: 16),
+              ListTile(
+                title: const Text('Return Date'),
+                subtitle: Text(DateFormat('dd/MM/yyyy').format(returnDate)),
+                trailing: const Icon(Icons.calendar_today),
+                onTap: () async {
+                  final date = await showDatePicker(
+                    context: context,
+                    initialDate: returnDate,
+                    firstDate: loan.loanDate,
+                    lastDate: DateTime.now(),
+                  );
+                  if (date != null) {
+                    setState(() {
+                      returnDate = date;
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                ref.read(loanProvider.notifier).markLoanAsReturned(loan.id, returnDate);
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Loan marked as returned!')),
+                );
+              },
+              child: const Text('Mark Returned'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showAddLoanDialog(BuildContext context) {
-    final nameController = TextEditingController();
-    final principalController = TextEditingController();
-    final interestRateController = TextEditingController();
+    final personNameController = TextEditingController();
+    final amountController = TextEditingController();
     final descriptionController = TextEditingController();
-    LoanType selectedType = LoanType.personal;
-    DateTime selectedStartDate = DateTime.now();
-    DateTime? selectedEndDate;
+    DateTime selectedLoanDate = DateTime.now();
+    DateTime? selectedReturnDate;
 
     showDialog(
       context: context,
@@ -227,72 +247,55 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Loan Name'),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<LoanType>(
-                  value: selectedType,
-                  decoration: const InputDecoration(labelText: 'Loan Type'),
-                  items: LoanType.values.map((type) {
-                    return DropdownMenuItem(
-                      value: type,
-                      child: Text(_getLoanTypeText(type)),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      selectedType = value!;
-                    });
-                  },
+                  controller: personNameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Person Name (Who you gave money to)',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 TextField(
-                  controller: principalController,
+                  controller: amountController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Principal Amount'),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: interestRateController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Interest Rate (%)'),
+                  decoration: const InputDecoration(
+                    labelText: 'Loan Amount',
+                    border: OutlineInputBorder(),
+                    prefixText: '৳ ',
+                  ),
                 ),
                 const SizedBox(height: 16),
                 ListTile(
-                  title: const Text('Start Date'),
-                  subtitle: Text(DateFormat('dd/MM/yyyy').format(selectedStartDate)),
+                  title: const Text('Loan Date'),
+                  subtitle: Text(DateFormat('dd/MM/yyyy').format(selectedLoanDate)),
                   trailing: const Icon(Icons.calendar_today),
                   onTap: () async {
                     final date = await showDatePicker(
                       context: context,
-                      initialDate: selectedStartDate,
+                      initialDate: selectedLoanDate,
                       firstDate: DateTime(2000),
-                      lastDate: DateTime(2100),
+                      lastDate: DateTime.now(),
                     );
                     if (date != null) {
                       setState(() {
-                        selectedStartDate = date;
+                        selectedLoanDate = date;
                       });
                     }
                   },
                 ),
                 ListTile(
-                  title: const Text('End Date (optional)'),
-                  subtitle: Text(selectedEndDate != null 
-                      ? DateFormat('dd/MM/yyyy').format(selectedEndDate!)
-                      : 'Not set'),
+                  title: const Text('Return Date (optional)'),
+                  subtitle: Text(selectedReturnDate != null ? DateFormat('dd/MM/yyyy').format(selectedReturnDate!) : 'Not set'),
                   trailing: const Icon(Icons.calendar_today),
                   onTap: () async {
                     final date = await showDatePicker(
                       context: context,
-                      initialDate: selectedEndDate ?? DateTime.now().add(const Duration(days: 365)),
-                      firstDate: selectedStartDate,
+                      initialDate: selectedReturnDate ?? DateTime.now(),
+                      firstDate: selectedLoanDate,
                       lastDate: DateTime(2100),
                     );
                     if (date != null) {
                       setState(() {
-                        selectedEndDate = date;
+                        selectedReturnDate = date;
                       });
                     }
                   },
@@ -300,7 +303,11 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: descriptionController,
-                  decoration: const InputDecoration(labelText: 'Description (optional)'),
+                  decoration: const InputDecoration(
+                    labelText: 'Description (optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
                 ),
               ],
             ),
@@ -310,96 +317,30 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel'),
             ),
-            TextButton(
+            ElevatedButton(
               onPressed: () {
-                final name = nameController.text.trim();
-                final principal = double.tryParse(principalController.text) ?? 0.0;
-                final interestRate = double.tryParse(interestRateController.text) ?? 0.0;
+                final personName = personNameController.text.trim();
+                final amount = double.tryParse(amountController.text) ?? 0.0;
                 final description = descriptionController.text.trim();
-                
-                if (name.isNotEmpty && principal > 0) {
+
+                if (personName.isNotEmpty && amount > 0) {
                   ref.read(loanProvider.notifier).addLoan(
-                    name: name,
-                    type: selectedType,
-                    principal: principal,
-                    interestRate: interestRate,
-                    startDate: selectedStartDate,
-                    endDate: selectedEndDate,
-                    description: description.isNotEmpty ? description : null,
-                  );
+                        personName: personName,
+                        amount: amount,
+                        loanDate: selectedLoanDate,
+                        returnDate: selectedReturnDate,
+                        description: description.isNotEmpty ? description : null,
+                      );
                   Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Loan added successfully!')),
+                  );
                 }
               },
-              child: const Text('Add'),
+              child: const Text('Add Loan'),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showPaymentDialog(BuildContext context, Loan loan) {
-    final paymentController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Make Payment - ${loan.name}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Remaining Amount: ${NumberFormat.currency(symbol: '৳', decimalDigits: 2).format(loan.remainingAmount)}'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: paymentController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Payment Amount'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              final payment = double.tryParse(paymentController.text) ?? 0.0;
-              
-              if (payment > 0 && payment <= loan.remainingAmount) {
-                ref.read(loanProvider.notifier).makePayment(loan.id, payment);
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('Pay'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showDeleteLoanDialog(BuildContext context, Loan loan) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Loan'),
-        content: Text('Are you sure you want to delete "${loan.name}"?\n\nThis action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              ref.read(loanProvider.notifier).deleteLoan(loan.id);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${loan.name} deleted successfully')),
-              );
-            },
-            child: const Text('Delete'),
-          ),
-        ],
       ),
     );
   }

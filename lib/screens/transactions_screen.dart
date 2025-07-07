@@ -93,7 +93,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> with Ti
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => _TransactionEntryScreen(
+        builder: (_) => const _TransactionEntryScreen(
           transactionType: TransactionType.income,
         ),
       ),
@@ -104,7 +104,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> with Ti
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => _TransactionEntryScreen(
+        builder: (_) => const _TransactionEntryScreen(
           transactionType: TransactionType.expense,
         ),
       ),
@@ -234,7 +234,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> with Ti
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Transaction'),
-        content: Text('Are you sure you want to delete this transaction?\n\nThis will adjust the account balance accordingly. This action cannot be undone.'),
+        content: const Text('Are you sure you want to delete this transaction?\n\nThis will adjust the account balance accordingly. This action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

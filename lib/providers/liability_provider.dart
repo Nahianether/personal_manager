@@ -28,7 +28,7 @@ class LiabilityState {
 
   double get totalLiabilityAmount {
     return liabilities
-        .where((liability) => liability.status == LiabilityStatus.pending)
+        .where((liability) => !liability.isPaid)
         .fold(0.0, (sum, liability) => sum + liability.amount);
   }
 
@@ -44,7 +44,7 @@ class LiabilityState {
     
     return liabilities
         .where((liability) => 
-            liability.status == LiabilityStatus.pending &&
+            !liability.isPaid &&
             liability.dueDate.isAfter(now) &&
             liability.dueDate.isBefore(nextWeek))
         .toList();
@@ -68,8 +68,7 @@ class LiabilityNotifier extends StateNotifier<LiabilityState> {
   }
 
   Future<void> addLiability({
-    required String name,
-    required LiabilityType type,
+    required String personName,
     required double amount,
     required DateTime dueDate,
     String currency = 'BDT',
@@ -78,12 +77,11 @@ class LiabilityNotifier extends StateNotifier<LiabilityState> {
     try {
       final liability = Liability(
         id: const Uuid().v4(),
-        name: name,
-        type: type,
+        personName: personName,
         amount: amount,
         currency: currency,
         dueDate: dueDate,
-        status: LiabilityStatus.pending,
+        isPaid: false,
         description: description,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
@@ -106,7 +104,7 @@ class LiabilityNotifier extends StateNotifier<LiabilityState> {
 
       final liability = state.liabilities[liabilityIndex];
       final updatedLiability = liability.copyWith(
-        status: LiabilityStatus.paid,
+        isPaid: true,
         updatedAt: DateTime.now(),
       );
 
@@ -122,14 +120,14 @@ class LiabilityNotifier extends StateNotifier<LiabilityState> {
     }
   }
 
-  Future<void> markAsOverdue(String liabilityId) async {
+  Future<void> markAsUnpaid(String liabilityId) async {
     try {
       final liabilityIndex = state.liabilities.indexWhere((l) => l.id == liabilityId);
       if (liabilityIndex == -1) return;
 
       final liability = state.liabilities[liabilityIndex];
       final updatedLiability = liability.copyWith(
-        status: LiabilityStatus.overdue,
+        isPaid: false,
         updatedAt: DateTime.now(),
       );
 
@@ -165,41 +163,20 @@ class LiabilityNotifier extends StateNotifier<LiabilityState> {
 
   List<Liability> getPendingLiabilities() {
     return state.liabilities
-        .where((liability) => liability.status == LiabilityStatus.pending)
+        .where((liability) => !liability.isPaid)
         .toList();
   }
 
   List<Liability> getPaidLiabilities() {
     return state.liabilities
-        .where((liability) => liability.status == LiabilityStatus.paid)
+        .where((liability) => liability.isPaid)
         .toList();
   }
 
-  List<Liability> getLiabilitiesByType(LiabilityType type) {
-    return state.liabilities.where((liability) => liability.type == type).toList();
-  }
-
   void checkOverdueItems() {
-    bool hasChanges = false;
-    final updatedLiabilities = <Liability>[];
-    
-    for (final liability in state.liabilities) {
-      if (liability.isOverdue && liability.status == LiabilityStatus.pending) {
-        final updatedLiability = liability.copyWith(
-          status: LiabilityStatus.overdue,
-          updatedAt: DateTime.now(),
-        );
-        updatedLiabilities.add(updatedLiability);
-        _databaseService.insertLiability(updatedLiability);
-        hasChanges = true;
-      } else {
-        updatedLiabilities.add(liability);
-      }
-    }
-    
-    if (hasChanges) {
-      state = state.copyWith(liabilities: updatedLiabilities);
-    }
+    // This method can be used to check for overdue items
+    // The isOverdue getter in the Liability model handles the logic
+    // No need to update status since we simplified to just isPaid/not paid
   }
 
   Future<void> deleteLiability(String liabilityId) async {

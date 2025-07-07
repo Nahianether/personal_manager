@@ -450,8 +450,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
   }
 
   Widget _buildLoanCard(Loan loan, NumberFormat currencyFormatter) {
-    final progress = (loan.totalAmount - loan.remainingAmount) / loan.totalAmount;
-    final isActive = loan.status.name == 'active';
+    final isActive = !loan.isReturned;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -480,13 +479,13 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        loan.name,
+                        'You lent to: ${loan.personName}',
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
                       ),
                       Text(
-                        '${loan.interestRate}% interest • ${loan.type.toString().split('.').last.toUpperCase()}',
+                        'Status: ${loan.isReturned ? 'Returned' : 'Outstanding'}',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
@@ -498,14 +497,14 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      currencyFormatter.format(loan.remainingAmount),
+                      currencyFormatter.format(loan.amount),
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: Colors.orange,
+                            color: isActive ? Colors.orange : Colors.green,
                             fontWeight: FontWeight.bold,
                           ),
                     ),
                     Text(
-                      'of ${currencyFormatter.format(loan.totalAmount)}',
+                      isActive ? 'Outstanding' : 'Returned',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
@@ -513,32 +512,6 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
               ],
             ),
             const SizedBox(height: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Progress',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    Text(
-                      '${(progress * 100).toStringAsFixed(1)}% paid',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                LinearProgressIndicator(
-                  value: progress,
-                  backgroundColor: Colors.grey[300],
-                  valueColor: AlwaysStoppedAnimation<Color>(isActive ? Colors.orange : Colors.grey),
-                ),
-              ],
-            ),
             if (loan.description != null && loan.description!.isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(
@@ -553,14 +526,14 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
               children: [
                 Expanded(
                   child: Text(
-                    'Started: ${DateFormat('dd MMM yyyy').format(loan.startDate)}',
+                    'Loan Date: ${DateFormat('dd MMM yyyy').format(loan.loanDate)}',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
-                if (loan.endDate != null)
+                if (loan.returnDate != null)
                   Expanded(
                     child: Text(
-                      'End: ${DateFormat('dd MMM yyyy').format(loan.endDate!)}',
+                      'Returned: ${DateFormat('dd MMM yyyy').format(loan.returnDate!)}',
                       style: Theme.of(context).textTheme.bodySmall,
                       textAlign: TextAlign.end,
                     ),
@@ -571,6 +544,16 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                if (isActive)
+                  TextButton.icon(
+                    onPressed: () => _showMarkLoanReturnedDialog(context, loan),
+                    icon: const Icon(Icons.check_circle, size: 16),
+                    label: const Text('Mark Returned'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.green,
+                    ),
+                  ),
+                const SizedBox(width: 8),
                 TextButton.icon(
                   onPressed: () => _showDeleteLoanDialog(context, loan),
                   icon: const Icon(Icons.delete, size: 16),
@@ -588,8 +571,9 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
   }
 
   Widget _buildLiabilityCard(Liability liability, NumberFormat currencyFormatter) {
-    final isOverdue = liability.dueDate.isBefore(DateTime.now());
-    final daysUntilDue = liability.dueDate.difference(DateTime.now()).inDays;
+    final isOverdue = liability.isOverdue;
+    final daysUntilDue = liability.daysUntilDue;
+    final isPaid = liability.isPaid;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -603,20 +587,28 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: isOverdue
-                        ? Colors.red.withValues(alpha: 0.1)
-                        : daysUntilDue <= 7
-                            ? Colors.orange.withValues(alpha: 0.1)
-                            : Colors.blue.withValues(alpha: 0.1),
+                    color: isPaid
+                        ? Colors.green.withValues(alpha: 0.1)
+                        : isOverdue
+                            ? Colors.red.withValues(alpha: 0.1)
+                            : daysUntilDue <= 7
+                                ? Colors.orange.withValues(alpha: 0.1)
+                                : Colors.blue.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
-                    isOverdue ? Icons.warning : Icons.assignment,
-                    color: isOverdue
-                        ? Colors.red
-                        : daysUntilDue <= 7
-                            ? Colors.orange
-                            : Colors.blue,
+                    isPaid 
+                        ? Icons.check_circle
+                        : isOverdue 
+                            ? Icons.warning 
+                            : Icons.assignment,
+                    color: isPaid
+                        ? Colors.green
+                        : isOverdue
+                            ? Colors.red
+                            : daysUntilDue <= 7
+                                ? Colors.orange
+                                : Colors.blue,
                     size: 24,
                   ),
                 ),
@@ -626,15 +618,19 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        liability.name,
+                        'To: ${liability.personName}',
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
                       ),
                       Text(
-                        liability.type.toString().split('.').last.toUpperCase(),
+                        isPaid ? 'PAID' : isOverdue ? 'OVERDUE' : 'PENDING',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              color: isPaid 
+                                  ? Colors.green
+                                  : isOverdue 
+                                      ? Colors.red
+                                      : Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
                       ),
                     ],
@@ -643,7 +639,11 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                 Text(
                   currencyFormatter.format(liability.amount),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: isOverdue ? Colors.red : Colors.blue,
+                        color: isPaid 
+                            ? Colors.green 
+                            : isOverdue 
+                                ? Colors.red 
+                                : Colors.blue,
                         fontWeight: FontWeight.bold,
                       ),
                 ),
@@ -741,13 +741,11 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
   }
 
   void _showAddLoanDialog(BuildContext context) {
-    final nameController = TextEditingController();
-    final principalController = TextEditingController();
-    final interestRateController = TextEditingController();
+    final personNameController = TextEditingController();
+    final amountController = TextEditingController();
     final descriptionController = TextEditingController();
-    LoanType selectedType = LoanType.personal;
-    DateTime selectedStartDate = DateTime.now();
-    DateTime? selectedEndDate;
+    DateTime selectedLoanDate = DateTime.now();
+    DateTime? selectedReturnDate;
 
     showDialog(
       context: context,
@@ -759,85 +757,55 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
-                  controller: nameController,
+                  controller: personNameController,
                   decoration: const InputDecoration(
-                    labelText: 'Loan Name',
+                    labelText: 'Person Name (Who you gave money to)',
                     border: OutlineInputBorder(),
                   ),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<LoanType>(
-                  value: selectedType,
-                  decoration: const InputDecoration(
-                    labelText: 'Loan Type',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: LoanType.values.map((type) {
-                    return DropdownMenuItem(
-                      value: type,
-                      child: Text(_getLoanTypeText(type)),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      selectedType = value!;
-                    });
-                  },
                 ),
                 const SizedBox(height: 16),
                 TextField(
-                  controller: principalController,
+                  controller: amountController,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
-                    labelText: 'Principal Amount',
+                    labelText: 'Loan Amount',
                     border: OutlineInputBorder(),
                     prefixText: '৳ ',
                   ),
                 ),
                 const SizedBox(height: 16),
-                TextField(
-                  controller: interestRateController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Interest Rate (%)',
-                    border: OutlineInputBorder(),
-                    suffixText: '%',
-                  ),
-                ),
-                const SizedBox(height: 16),
                 ListTile(
-                  title: const Text('Start Date'),
-                  subtitle: Text(DateFormat('dd/MM/yyyy').format(selectedStartDate)),
+                  title: const Text('Loan Date'),
+                  subtitle: Text(DateFormat('dd/MM/yyyy').format(selectedLoanDate)),
                   trailing: const Icon(Icons.calendar_today),
                   onTap: () async {
                     final date = await showDatePicker(
                       context: context,
-                      initialDate: selectedStartDate,
+                      initialDate: selectedLoanDate,
                       firstDate: DateTime(2000),
-                      lastDate: DateTime(2100),
+                      lastDate: DateTime.now(),
                     );
                     if (date != null) {
                       setState(() {
-                        selectedStartDate = date;
+                        selectedLoanDate = date;
                       });
                     }
                   },
                 ),
                 ListTile(
-                  title: const Text('End Date (optional)'),
-                  subtitle:
-                      Text(selectedEndDate != null ? DateFormat('dd/MM/yyyy').format(selectedEndDate!) : 'Not set'),
+                  title: const Text('Return Date (optional)'),
+                  subtitle: Text(selectedReturnDate != null ? DateFormat('dd/MM/yyyy').format(selectedReturnDate!) : 'Not set'),
                   trailing: const Icon(Icons.calendar_today),
                   onTap: () async {
                     final date = await showDatePicker(
                       context: context,
-                      initialDate: selectedEndDate ?? DateTime.now().add(const Duration(days: 365)),
-                      firstDate: selectedStartDate,
+                      initialDate: selectedReturnDate ?? DateTime.now(),
+                      firstDate: selectedLoanDate,
                       lastDate: DateTime(2100),
                     );
                     if (date != null) {
                       setState(() {
-                        selectedEndDate = date;
+                        selectedReturnDate = date;
                       });
                     }
                   },
@@ -861,19 +829,16 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
             ),
             ElevatedButton(
               onPressed: () {
-                final name = nameController.text.trim();
-                final principal = double.tryParse(principalController.text) ?? 0.0;
-                final interestRate = double.tryParse(interestRateController.text) ?? 0.0;
+                final personName = personNameController.text.trim();
+                final amount = double.tryParse(amountController.text) ?? 0.0;
                 final description = descriptionController.text.trim();
 
-                if (name.isNotEmpty && principal > 0) {
+                if (personName.isNotEmpty && amount > 0) {
                   ref.read(loanProvider.notifier).addLoan(
-                        name: name,
-                        type: selectedType,
-                        principal: principal,
-                        interestRate: interestRate,
-                        startDate: selectedStartDate,
-                        endDate: selectedEndDate,
+                        personName: personName,
+                        amount: amount,
+                        loanDate: selectedLoanDate,
+                        returnDate: selectedReturnDate,
                         description: description.isNotEmpty ? description : null,
                       );
                   Navigator.pop(context);
@@ -891,10 +856,9 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
   }
 
   void _showAddLiabilityDialog(BuildContext context) {
-    final nameController = TextEditingController();
+    final personNameController = TextEditingController();
     final amountController = TextEditingController();
     final descriptionController = TextEditingController();
-    LiabilityType selectedType = LiabilityType.bill;
     DateTime selectedDueDate = DateTime.now().add(const Duration(days: 30));
 
     showDialog(
@@ -907,30 +871,11 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
-                  controller: nameController,
+                  controller: personNameController,
                   decoration: const InputDecoration(
-                    labelText: 'Liability Name',
+                    labelText: 'Person Name (Who you owe money to)',
                     border: OutlineInputBorder(),
                   ),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<LiabilityType>(
-                  value: selectedType,
-                  decoration: const InputDecoration(
-                    labelText: 'Liability Type',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: LiabilityType.values.map((type) {
-                    return DropdownMenuItem(
-                      value: type,
-                      child: Text(_getLiabilityTypeText(type)),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      selectedType = value!;
-                    });
-                  },
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -980,14 +925,13 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
             ),
             ElevatedButton(
               onPressed: () {
-                final name = nameController.text.trim();
+                final personName = personNameController.text.trim();
                 final amount = double.tryParse(amountController.text) ?? 0.0;
                 final description = descriptionController.text.trim();
 
-                if (name.isNotEmpty && amount > 0) {
+                if (personName.isNotEmpty && amount > 0) {
                   ref.read(liabilityProvider.notifier).addLiability(
-                        name: name,
-                        type: selectedType,
+                        personName: personName,
                         amount: amount,
                         dueDate: selectedDueDate,
                         description: description.isNotEmpty ? description : null,
@@ -1011,7 +955,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Loan'),
-        content: Text('Are you sure you want to delete "${loan.name}"?\n\nThis action cannot be undone.'),
+        content: Text('Are you sure you want to delete loan to "${loan.personName}"?\n\nThis action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -1037,7 +981,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Liability'),
-        content: Text('Are you sure you want to delete "${liability.name}"?\n\nThis action cannot be undone.'),
+        content: Text('Are you sure you want to delete liability to "${liability.personName}"?\n\nThis action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -1058,37 +1002,57 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
     );
   }
 
-  String _getLoanTypeText(LoanType type) {
-    switch (type) {
-      case LoanType.personal:
-        return 'Personal Loan';
-      case LoanType.home:
-        return 'Home Loan';
-      case LoanType.car:
-        return 'Car Loan';
-      case LoanType.education:
-        return 'Education Loan';
-      case LoanType.business:
-        return 'Business Loan';
-      case LoanType.other:
-        return 'Other';
-    }
-  }
-
-  String _getLiabilityTypeText(LiabilityType type) {
-    switch (type) {
-      case LiabilityType.bill:
-        return 'Bill';
-      case LiabilityType.debt:
-        return 'Debt';
-      case LiabilityType.tax:
-        return 'Tax';
-      case LiabilityType.insurance:
-        return 'Insurance';
-      case LiabilityType.subscription:
-        return 'Subscription';
-      case LiabilityType.other:
-        return 'Other';
-    }
+  void _showMarkLoanReturnedDialog(BuildContext context, Loan loan) {
+    DateTime returnDate = DateTime.now();
+    
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Mark Loan as Returned'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Mark loan to "${loan.personName}" as returned?'),
+              const SizedBox(height: 16),
+              ListTile(
+                title: const Text('Return Date'),
+                subtitle: Text(DateFormat('dd/MM/yyyy').format(returnDate)),
+                trailing: const Icon(Icons.calendar_today),
+                onTap: () async {
+                  final date = await showDatePicker(
+                    context: context,
+                    initialDate: returnDate,
+                    firstDate: loan.loanDate,
+                    lastDate: DateTime.now(),
+                  );
+                  if (date != null) {
+                    setState(() {
+                      returnDate = date;
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                ref.read(loanProvider.notifier).markLoanAsReturned(loan.id, returnDate);
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Loan marked as returned!')),
+                );
+              },
+              child: const Text('Mark Returned'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

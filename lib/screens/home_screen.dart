@@ -184,7 +184,7 @@ class DashboardTab extends ConsumerWidget {
                           context,
                           'Active Loans',
                           currencyFormatter.format(loanState.totalLoanAmount),
-                          '${loanState.loans.where((l) => l.status.name == 'active').length} loans',
+                          '${loanState.loans.where((l) => !l.isReturned).length} loans',
                           Icons.trending_up_rounded,
                           Colors.orange,
                         ),
@@ -872,7 +872,7 @@ class DashboardTab extends ConsumerWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => _TransactionEntryScreen(
+        builder: (_) => const _TransactionEntryScreen(
           transactionType: TransactionType.income,
         ),
       ),
@@ -883,7 +883,7 @@ class DashboardTab extends ConsumerWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => _TransactionEntryScreen(
+        builder: (_) => const _TransactionEntryScreen(
           transactionType: TransactionType.expense,
         ),
       ),

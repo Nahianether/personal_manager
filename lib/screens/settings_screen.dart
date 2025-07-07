@@ -323,12 +323,12 @@ class SettingsScreen extends ConsumerWidget {
               secondary: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
+                  color: _getThemeColor(theme).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   theme.icon,
-                  color: Theme.of(context).colorScheme.primary,
+                  color: _getThemeColor(theme),
                   size: 20,
                 ),
               ),
@@ -353,6 +353,18 @@ class SettingsScreen extends ConsumerWidget {
         return 'Always use dark theme';
       case AppTheme.auto:
         return 'Follow system setting';
+    }
+  }
+
+  Color _getThemeColor(AppTheme theme) {
+    switch (theme) {
+      case AppTheme.light:
+        return const Color(0xFF1A73E8); // Light theme primary color
+      case AppTheme.dark:
+        return const Color(0xFF4285F4); // Dark theme primary color
+      case AppTheme.auto:
+        // For auto, use a neutral color that represents system sync
+        return const Color(0xFF9C27B0); // Purple color for auto mode
     }
   }
 

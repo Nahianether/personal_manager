@@ -26,7 +26,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), 'personal_manager.db');
     return await openDatabase(
       path,
-      version: 3,
+      version: 5,
       onCreate: _createTables,
       onUpgrade: _upgradeDatabase,
     );
@@ -64,16 +64,12 @@ class DatabaseService {
     await db.execute('''
       CREATE TABLE loans (
         id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        type TEXT NOT NULL,
-        principal REAL NOT NULL,
-        interest_rate REAL NOT NULL,
-        remaining_amount REAL NOT NULL,
-        total_amount REAL NOT NULL,
+        person_name TEXT NOT NULL,
+        amount REAL NOT NULL,
         currency TEXT NOT NULL DEFAULT 'BDT',
-        start_date TEXT NOT NULL,
-        end_date TEXT,
-        status TEXT NOT NULL,
+        loan_date TEXT NOT NULL,
+        return_date TEXT,
+        is_returned INTEGER NOT NULL DEFAULT 0,
         description TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -83,12 +79,11 @@ class DatabaseService {
     await db.execute('''
       CREATE TABLE liabilities (
         id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        type TEXT NOT NULL,
+        person_name TEXT NOT NULL,
         amount REAL NOT NULL,
         currency TEXT NOT NULL DEFAULT 'BDT',
         due_date TEXT NOT NULL,
-        status TEXT NOT NULL,
+        is_paid INTEGER NOT NULL DEFAULT 0,
         description TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -151,6 +146,47 @@ class DatabaseService {
       await db.execute('''
         ALTER TABLE accounts ADD COLUMN credit_limit REAL
       ''');
+    }
+    
+    if (oldVersion < 5) {
+      // Migrate loans table to new simplified structure
+      await db.execute('DROP TABLE IF EXISTS loans_backup');
+      await db.execute('ALTER TABLE loans RENAME TO loans_backup');
+      
+      await db.execute('''
+        CREATE TABLE loans (
+          id TEXT PRIMARY KEY,
+          person_name TEXT NOT NULL,
+          amount REAL NOT NULL,
+          currency TEXT NOT NULL DEFAULT 'BDT',
+          loan_date TEXT NOT NULL,
+          return_date TEXT,
+          is_returned INTEGER NOT NULL DEFAULT 0,
+          description TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )
+      ''');
+      
+      // Migrate existing loan data to new schema
+      final oldLoans = await db.query('loans_backup');
+      for (final loan in oldLoans) {
+        await db.insert('loans', {
+          'id': loan['id'],
+          'person_name': loan['borrower_name'] ?? loan['lender_name'] ?? 'Unknown',
+          'amount': loan['amount'],
+          'currency': loan['currency'],
+          'loan_date': loan['loan_date'],
+          'return_date': loan['return_date'],
+          'is_returned': loan['is_returned'],
+          'description': loan['description'],
+          'created_at': loan['created_at'],
+          'updated_at': loan['updated_at'],
+        });
+      }
+      
+      // Clean up backup table
+      await db.execute('DROP TABLE IF EXISTS loans_backup');
     }
   }
 
@@ -342,16 +378,12 @@ class DatabaseService {
     return List.generate(maps.length, (i) {
       return Loan.fromJson({
         'id': maps[i]['id'],
-        'name': maps[i]['name'],
-        'type': maps[i]['type'],
-        'principal': maps[i]['principal'],
-        'interestRate': maps[i]['interest_rate'],
-        'remainingAmount': maps[i]['remaining_amount'],
-        'totalAmount': maps[i]['total_amount'],
+        'personName': maps[i]['person_name'] ?? maps[i]['borrower_name'] ?? maps[i]['lender_name'] ?? '',
+        'amount': maps[i]['amount'],
         'currency': maps[i]['currency'],
-        'startDate': maps[i]['start_date'],
-        'endDate': maps[i]['end_date'],
-        'status': maps[i]['status'],
+        'loanDate': maps[i]['loan_date'],
+        'returnDate': maps[i]['return_date'],
+        'isReturned': maps[i]['is_returned'] == 1,
         'description': maps[i]['description'],
         'createdAt': maps[i]['created_at'],
         'updatedAt': maps[i]['updated_at'],
@@ -365,16 +397,12 @@ class DatabaseService {
       'loans',
       {
         'id': loan.id,
-        'name': loan.name,
-        'type': loan.type.toString().split('.').last,
-        'principal': loan.principal,
-        'interest_rate': loan.interestRate,
-        'remaining_amount': loan.remainingAmount,
-        'total_amount': loan.totalAmount,
+        'person_name': loan.personName,
+        'amount': loan.amount,
         'currency': loan.currency,
-        'start_date': loan.startDate.toIso8601String(),
-        'end_date': loan.endDate?.toIso8601String(),
-        'status': loan.status.toString().split('.').last,
+        'loan_date': loan.loanDate.toIso8601String(),
+        'return_date': loan.returnDate?.toIso8601String(),
+        'is_returned': loan.isReturned ? 1 : 0,
         'description': loan.description,
         'created_at': loan.createdAt.toIso8601String(),
         'updated_at': loan.updatedAt.toIso8601String(),
@@ -398,12 +426,11 @@ class DatabaseService {
     return List.generate(maps.length, (i) {
       return Liability.fromJson({
         'id': maps[i]['id'],
-        'name': maps[i]['name'],
-        'type': maps[i]['type'],
+        'personName': maps[i]['person_name'],
         'amount': maps[i]['amount'],
         'currency': maps[i]['currency'],
         'dueDate': maps[i]['due_date'],
-        'status': maps[i]['status'],
+        'isPaid': maps[i]['is_paid'] == 1,
         'description': maps[i]['description'],
         'createdAt': maps[i]['created_at'],
         'updatedAt': maps[i]['updated_at'],
@@ -417,12 +444,11 @@ class DatabaseService {
       'liabilities',
       {
         'id': liability.id,
-        'name': liability.name,
-        'type': liability.type.toString().split('.').last,
+        'person_name': liability.personName,
         'amount': liability.amount,
         'currency': liability.currency,
         'due_date': liability.dueDate.toIso8601String(),
-        'status': liability.status.toString().split('.').last,
+        'is_paid': liability.isPaid ? 1 : 0,
         'description': liability.description,
         'created_at': liability.createdAt.toIso8601String(),
         'updated_at': liability.updatedAt.toIso8601String(),
