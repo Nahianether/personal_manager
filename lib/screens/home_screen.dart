@@ -572,12 +572,18 @@ class DashboardTab extends ConsumerWidget {
                     ),
                     Text(
                       NumberFormat.currency(symbol: '৳', decimalDigits: 2)
-                          .format(account.balance),
+                          .format(account.isCreditCard && account.creditLimit != null 
+                              ? account.availableCredit 
+                              : account.balance),
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: account.balance >= 0 
-                            ? Theme.of(context).colorScheme.secondary
-                            : Theme.of(context).colorScheme.error,
+                        color: account.isCreditCard && account.creditLimit != null
+                            ? (account.availableCredit > 0
+                                ? Theme.of(context).colorScheme.secondary
+                                : Theme.of(context).colorScheme.error)
+                            : (account.balance >= 0 
+                                ? Theme.of(context).colorScheme.secondary
+                                : Theme.of(context).colorScheme.error),
                       ),
                     ),
                   ],

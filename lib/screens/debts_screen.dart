@@ -229,8 +229,8 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
 
   Widget _buildLoansSummaryCard(dynamic loanState, NumberFormat currencyFormatter) {
     final totalLoanAmount = loanState.totalLoanAmount;
-    final activeLoans = loanState.loans.where((l) => l.status.name == 'active').length;
-    final completedLoans = loanState.loans.where((l) => l.status.name == 'completed').length;
+    final activeLoans = loanState.loans.where((Loan l) => !l.isReturned).length;
+    final completedLoans = loanState.loans.where((Loan l) => l.isReturned).length;
 
     return Container(
       margin: const EdgeInsets.all(16),

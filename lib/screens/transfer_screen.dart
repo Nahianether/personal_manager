@@ -386,7 +386,8 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
 
   Widget _buildAccountBalance(String accountId, List<Account> accounts, NumberFormat currencyFormatter) {
     final account = accounts.firstWhere((a) => a.id == accountId);
-    final isLowBalance = account.balance < 1000; // You can adjust this threshold
+    final availableAmount = account.isCreditCard && account.creditLimit != null ? account.availableCredit : account.balance;
+    final isLowBalance = availableAmount < 1000; // You can adjust this threshold
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -409,7 +410,7 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
           ),
           const SizedBox(width: 8),
           Text(
-            'Available: ${currencyFormatter.format(account.balance)}',
+            'Available: ${currencyFormatter.format(availableAmount)}',
             style: TextStyle(
               color: isLowBalance ? Colors.orange : Colors.green,
               fontWeight: FontWeight.w500,
