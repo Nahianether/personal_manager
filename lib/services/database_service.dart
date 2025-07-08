@@ -174,7 +174,7 @@ class DatabaseService {
         await db.insert('loans', {
           'id': loan['id'],
           'person_name': loan['borrower_name'] ?? loan['lender_name'] ?? 'Unknown',
-          'amount': loan['amount'],
+          'amount': loan['amount'] ?? loan['principal'] ?? loan['total_amount'] ?? 0.0,
           'currency': loan['currency'],
           'loan_date': loan['loan_date'],
           'return_date': loan['return_date'],

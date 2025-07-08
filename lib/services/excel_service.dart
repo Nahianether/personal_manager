@@ -157,6 +157,12 @@ class ExcelService {
           }
 
           if (rowData.isNotEmpty) {
+            // Validate required fields for loans
+            if (sheetName == 'Loans') {
+              if (rowData['amount'] == null || rowData['person_name'] == null || rowData['id'] == null) {
+                continue; // Skip rows with missing required fields
+              }
+            }
             rows.add(rowData);
           }
         }
@@ -185,7 +191,7 @@ class ExcelService {
     final requiredColumns = {
       'Accounts': ['id', 'name', 'type', 'balance'],
       'Transactions': ['id', 'account_id', 'type', 'amount'],
-      'Loans': ['id', 'name', 'type', 'principal'],
+      'Loans': ['id', 'person_name', 'amount'],
       'Liabilities': ['id', 'name', 'type', 'amount'],
       'Categories': ['id', 'name', 'type'],
     };
