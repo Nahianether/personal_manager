@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../providers/transaction_provider.dart';
 import '../providers/account_provider.dart';
-import '../providers/category_provider.dart';
 import '../models/transaction.dart';
 import '../models/account.dart';
 import '../models/category.dart';
