@@ -11,6 +11,8 @@ import '../models/transaction.dart';
 import '../models/account.dart';
 import '../models/category.dart';
 import '../widgets/category_selector.dart';
+import '../widgets/sync_status_widget.dart';
+import '../providers/sync_provider.dart';
 import 'accounts_screen.dart';
 import 'transactions_screen.dart';
 import 'debts_screen.dart';
@@ -138,6 +140,49 @@ class DashboardTab extends ConsumerWidget {
               titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
             ),
             actions: [
+              Consumer(
+                builder: (context, ref, child) {
+                  final syncState = ref.watch(syncProvider);
+                  return Stack(
+                    children: [
+                      IconButton(
+                        onPressed: () => _showSyncModal(context),
+                        icon: Icon(
+                          syncState.isConnected && syncState.pendingItemsCount == 0
+                              ? Icons.cloud_done_rounded
+                              : Icons.cloud_sync_rounded,
+                          color: _getSyncButtonColor(syncState),
+                        ),
+                      ),
+                      if (syncState.pendingItemsCount > 0)
+                        Positioned(
+                          right: 6,
+                          top: 6,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: Colors.orange,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 16,
+                              minHeight: 16,
+                            ),
+                            child: Text(
+                              '${syncState.pendingItemsCount}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
               IconButton(
                 onPressed: () => Navigator.push(
                   context,
@@ -199,13 +244,6 @@ class DashboardTab extends ConsumerWidget {
                         ),
                       ],
                     );
-                  },
-                ),
-                const SizedBox(height: 16),
-                Consumer(
-                  builder: (context, ref, child) {
-                    final accountState = ref.watch(accountProvider);
-                    return _buildRecentAccountsSection(context, accountState.accounts.take(3).toList());
                   },
                 ),
               ]),
@@ -463,137 +501,6 @@ class DashboardTab extends ConsumerWidget {
     );
   }
 
-  Widget _buildRecentAccountsSection(BuildContext context, List accounts) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Recent Accounts',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AccountsScreen()),
-              ),
-              child: Text(
-                'View All',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-        if (accounts.isEmpty)
-          Container(
-            margin: const EdgeInsets.only(top: 8),
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainer,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.account_balance_wallet_outlined,
-                    size: 48,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No accounts yet',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Add your first account to get started',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          )
-        else
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: accounts.asMap().entries.map((entry) {
-              final index = entry.key;
-              final account = entry.value;
-              return Container(
-                margin: EdgeInsets.only(top: index == 0 ? 8 : 8),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        Icons.account_balance_wallet_rounded,
-                        color: Theme.of(context).colorScheme.primary,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            account.name,
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Text(
-                            account.type.toString().split('.').last.toUpperCase(),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                    Text(
-                      NumberFormat.currency(symbol: '৳', decimalDigits: 2)
-                          .format(account.isCreditCard && account.creditLimit != null 
-                              ? account.availableCredit 
-                              : account.balance),
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: account.isCreditCard && account.creditLimit != null
-                            ? (account.availableCredit > 0
-                                ? Theme.of(context).colorScheme.secondary
-                                : Theme.of(context).colorScheme.error)
-                            : (account.balance >= 0 
-                                ? Theme.of(context).colorScheme.secondary
-                                : Theme.of(context).colorScheme.error),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-      ],
-    );
-  }
 
   Widget _buildIncomeExpenseChart(BuildContext context, WidgetRef ref, NumberFormat currencyFormatter) {
     final transactionState = ref.watch(transactionProvider);
@@ -891,6 +798,72 @@ class DashboardTab extends ConsumerWidget {
       MaterialPageRoute(
         builder: (_) => const _TransactionEntryScreen(
           transactionType: TransactionType.expense,
+        ),
+      ),
+    );
+  }
+
+  Color _getSyncButtonColor(SyncState syncState) {
+    if (!syncState.isConnected) return Colors.red;
+    if (syncState.pendingItemsCount > 0) return Colors.orange;
+    return Colors.green;
+  }
+
+  void _showSyncModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+      ),
+      builder: (context) => Container(
+        height: 280, // Fixed height similar to sync card
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Header
+            Row(
+              children: [
+                Icon(
+                  Icons.cloud_sync_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Sync Status',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Sync content
+            const Expanded(
+              child: SyncStatusWidget(),
+            ),
+          ],
         ),
       ),
     );

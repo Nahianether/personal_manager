@@ -5,6 +5,8 @@ import '../models/transaction.dart' as transaction_model;
 import '../models/loan.dart';
 import '../models/liability.dart';
 import '../models/category.dart';
+import 'sync_service.dart';
+import 'connectivity_service.dart';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -16,6 +18,16 @@ class DatabaseService {
 
   DatabaseService._internal();
 
+  // Trigger immediate sync if connected
+  void _triggerImmediateSync(String table, String id) {
+    if (ConnectivityService.isConnected) {
+      // Use Future.delayed to avoid blocking the database operation
+      Future.delayed(Duration.zero, () {
+        SyncService().markForSync(table, id);
+      });
+    }
+  }
+
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDatabase();
@@ -26,7 +38,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), 'personal_manager.db');
     return await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: _createTables,
       onUpgrade: _upgradeDatabase,
     );
@@ -42,7 +54,9 @@ class DatabaseService {
         currency TEXT NOT NULL DEFAULT 'BDT',
         credit_limit REAL,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        sync_status TEXT NOT NULL DEFAULT 'pending',
+        last_synced_at TEXT
       )
     ''');
 
@@ -57,6 +71,8 @@ class DatabaseService {
         description TEXT,
         date TEXT NOT NULL,
         created_at TEXT NOT NULL,
+        sync_status TEXT NOT NULL DEFAULT 'pending',
+        last_synced_at TEXT,
         FOREIGN KEY (account_id) REFERENCES accounts (id)
       )
     ''');
@@ -72,7 +88,9 @@ class DatabaseService {
         is_returned INTEGER NOT NULL DEFAULT 0,
         description TEXT,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        sync_status TEXT NOT NULL DEFAULT 'pending',
+        last_synced_at TEXT
       )
     ''');
 
@@ -86,7 +104,9 @@ class DatabaseService {
         is_paid INTEGER NOT NULL DEFAULT 0,
         description TEXT,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        sync_status TEXT NOT NULL DEFAULT 'pending',
+        last_synced_at TEXT
       )
     ''');
 
@@ -188,6 +208,21 @@ class DatabaseService {
       // Clean up backup table
       await db.execute('DROP TABLE IF EXISTS loans_backup');
     }
+    
+    if (oldVersion < 6) {
+      // Add sync status columns to all tables
+      await db.execute('ALTER TABLE accounts ADD COLUMN sync_status TEXT NOT NULL DEFAULT "pending"');
+      await db.execute('ALTER TABLE accounts ADD COLUMN last_synced_at TEXT');
+      
+      await db.execute('ALTER TABLE transactions ADD COLUMN sync_status TEXT NOT NULL DEFAULT "pending"');
+      await db.execute('ALTER TABLE transactions ADD COLUMN last_synced_at TEXT');
+      
+      await db.execute('ALTER TABLE loans ADD COLUMN sync_status TEXT NOT NULL DEFAULT "pending"');
+      await db.execute('ALTER TABLE loans ADD COLUMN last_synced_at TEXT');
+      
+      await db.execute('ALTER TABLE liabilities ADD COLUMN sync_status TEXT NOT NULL DEFAULT "pending"');
+      await db.execute('ALTER TABLE liabilities ADD COLUMN last_synced_at TEXT');
+    }
   }
 
   Future<void> _insertDefaultCategories(Database db) async {
@@ -239,9 +274,13 @@ class DatabaseService {
         'credit_limit': account.creditLimit,
         'created_at': account.createdAt.toIso8601String(),
         'updated_at': account.updatedAt.toIso8601String(),
+        'sync_status': 'pending',
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    
+    // Trigger immediate sync if connected
+    _triggerImmediateSync('accounts', account.id);
   }
 
   Future<void> updateAccount(Account account) async {
@@ -255,6 +294,7 @@ class DatabaseService {
         'currency': account.currency,
         'credit_limit': account.creditLimit,
         'updated_at': account.updatedAt.toIso8601String(),
+        'sync_status': 'pending',
       },
       where: 'id = ?',
       whereArgs: [account.id],
@@ -346,9 +386,13 @@ class DatabaseService {
         'description': transaction.description,
         'date': transaction.date.toIso8601String(),
         'created_at': transaction.createdAt.toIso8601String(),
+        'sync_status': 'pending',
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    
+    // Trigger immediate sync if connected
+    _triggerImmediateSync('transactions', transaction.id);
   }
 
   Future<void> updateAccountBalance(String accountId, double newBalance) async {
@@ -406,9 +450,13 @@ class DatabaseService {
         'description': loan.description,
         'created_at': loan.createdAt.toIso8601String(),
         'updated_at': loan.updatedAt.toIso8601String(),
+        'sync_status': 'pending',
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    
+    // Trigger immediate sync if connected
+    _triggerImmediateSync('loans', loan.id);
   }
 
   Future<void> deleteLoan(String id) async {
@@ -452,9 +500,13 @@ class DatabaseService {
         'description': liability.description,
         'created_at': liability.createdAt.toIso8601String(),
         'updated_at': liability.updatedAt.toIso8601String(),
+        'sync_status': 'pending',
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    
+    // Trigger immediate sync if connected
+    _triggerImmediateSync('liabilities', liability.id);
   }
 
   Future<void> deleteLiability(String id) async {

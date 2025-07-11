@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'providers/theme_provider.dart';
+import 'providers/sync_provider.dart';
 import 'screens/home_screen.dart';
 
 void main() {
@@ -17,6 +18,8 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeState = ref.watch(themeProvider);
+    
+    ref.read(syncProvider);
     
     return MaterialApp(
       title: 'Personal Manager',

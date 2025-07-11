@@ -542,7 +542,8 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Account'),
-        content: Text('Are you sure you want to delete "${account.name}"?\n\nThis will also delete all transactions associated with this account. This action cannot be undone.'),
+        content: Text(
+            'Are you sure you want to delete "${account.name}"?\n\nThis will also delete all transactions associated with this account. This action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -812,8 +813,8 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
             Text(
               'Account Actions',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: 20),
             ListTile(
