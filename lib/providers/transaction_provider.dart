@@ -132,6 +132,73 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
         error: null,
       );
     } catch (e) {
+      // Check for database permission errors
+      if (e.toString().contains('readonly database') || e.toString().contains('1032')) {
+        try {
+          // Attempt to reset the database
+          print('Attempting to reset database due to permission error...');
+          await _databaseService.resetDatabase();
+          
+          // Retry the transaction
+          final retryTransaction = Transaction(
+            id: const Uuid().v4(),
+            accountId: accountId,
+            type: type,
+            amount: amount,
+            currency: currency,
+            category: category,
+            description: description,
+            date: date ?? DateTime.now(),
+            createdAt: DateTime.now(),
+          );
+          
+          await _databaseService.insertTransaction(retryTransaction);
+          
+          // Update account balance if successful
+          final accountNotifier = _ref.read(accountProvider.notifier);
+          final account = accountNotifier.getAccountById(accountId);
+          
+          if (account != null) {
+            double newBalance = account.balance;
+            
+            if (account.isCreditCard) {
+              switch (type) {
+                case TransactionType.income:
+                  newBalance -= amount;
+                  break;
+                case TransactionType.expense:
+                  newBalance += amount;
+                  break;
+                case TransactionType.transfer:
+                  break;
+              }
+            } else {
+              switch (type) {
+                case TransactionType.income:
+                  newBalance += amount;
+                  break;
+                case TransactionType.expense:
+                  newBalance -= amount;
+                  break;
+                case TransactionType.transfer:
+                  break;
+              }
+            }
+            
+            await accountNotifier.updateAccountBalance(accountId, newBalance);
+          }
+          
+          state = state.copyWith(
+            transactions: [retryTransaction, ...state.transactions],
+            error: null,
+          );
+          return;
+        } catch (resetError) {
+          state = state.copyWith(error: 'Database error: ${resetError.toString()}. Please restart the app.');
+          return;
+        }
+      }
+      
       state = state.copyWith(error: e.toString());
     }
   }

@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../providers/loan_provider.dart';
 import '../providers/liability_provider.dart';
+import '../providers/account_provider.dart';
 import '../models/loan.dart';
 import '../models/liability.dart';
+import '../models/account.dart';
 
 class DebtsScreen extends ConsumerStatefulWidget {
   const DebtsScreen({super.key});
@@ -746,6 +748,8 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
     final descriptionController = TextEditingController();
     DateTime selectedLoanDate = DateTime.now();
     DateTime? selectedReturnDate;
+    bool isHistoricalEntry = false; // Default to new loan (debit account)
+    Account? selectedAccount;
 
     showDialog(
       context: context,
@@ -811,6 +815,71 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                   },
                 ),
                 const SizedBox(height: 16),
+                
+                // Historical Entry Toggle
+                SwitchListTile(
+                  title: const Text('Historical Entry'),
+                  subtitle: Text(
+                    isHistoricalEntry 
+                      ? 'Past loan entry (no account debit)'
+                      : 'New loan (will debit selected account)'
+                  ),
+                  value: isHistoricalEntry,
+                  onChanged: (value) {
+                    setState(() {
+                      isHistoricalEntry = value;
+                      if (value) selectedAccount = null; // Clear account for historical
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                
+                // Account Selection (only for new loans)
+                if (!isHistoricalEntry) ...[ 
+                  Consumer(
+                    builder: (context, ref, child) {
+                      final accountState = ref.watch(accountProvider);
+                      final accounts = accountState.accounts;
+                      
+                      if (accounts.isEmpty) {
+                        return const Card(
+                          child: Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: Text(
+                              'No accounts available. Please create an account first.',
+                              style: TextStyle(color: Colors.orange),
+                            ),
+                          ),
+                        );
+                      }
+                      
+                      return DropdownButtonFormField<Account>(
+                        value: selectedAccount,
+                        decoration: const InputDecoration(
+                          labelText: 'Select Account to Debit',
+                          border: OutlineInputBorder(),
+                          helperText: 'Money will be deducted from this account',
+                        ),
+                        items: accounts.map((account) {
+                          return DropdownMenuItem<Account>(
+                            value: account,
+                            child: Text(
+                              '${account.name} (৳${account.balance.toStringAsFixed(2)})',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (Account? account) {
+                          setState(() {
+                            selectedAccount = account;
+                          });
+                        },
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                
                 TextField(
                   controller: descriptionController,
                   decoration: const InputDecoration(
@@ -833,17 +902,56 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                 final amount = double.tryParse(amountController.text) ?? 0.0;
                 final description = descriptionController.text.trim();
 
+                // Validation
+                if (personName.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please enter person name')),
+                  );
+                  return;
+                }
+                
+                if (amount <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please enter valid amount')),
+                  );
+                  return;
+                }
+                
+                if (!isHistoricalEntry && selectedAccount == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please select an account')),
+                  );
+                  return;
+                }
+                
+                // Check sufficient balance for new loans
+                if (!isHistoricalEntry && selectedAccount != null && selectedAccount!.balance < amount) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Insufficient balance. Available: ৳${selectedAccount!.balance.toStringAsFixed(2)}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
                 if (personName.isNotEmpty && amount > 0) {
                   ref.read(loanProvider.notifier).addLoan(
                         personName: personName,
                         amount: amount,
                         loanDate: selectedLoanDate,
-                        returnDate: selectedReturnDate,
                         description: description.isNotEmpty ? description : null,
+                        isHistoricalEntry: isHistoricalEntry,
+                        accountId: selectedAccount?.id
                       );
                   Navigator.pop(context);
+                  
+                  final message = isHistoricalEntry 
+                    ? 'Historical loan entry added successfully!'
+                    : 'Loan created and ৳${amount.toStringAsFixed(2)} debited from ${selectedAccount!.name}';
+                    
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Loan added successfully!')),
+                    SnackBar(content: Text(message)),
                   );
                 }
               },
@@ -860,6 +968,8 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
     final amountController = TextEditingController();
     final descriptionController = TextEditingController();
     DateTime selectedDueDate = DateTime.now().add(const Duration(days: 30));
+    bool isHistoricalEntry = true; // Default to historical entry (no immediate account impact)
+    Account? selectedAccount;
 
     showDialog(
       context: context,
@@ -907,6 +1017,69 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                   },
                 ),
                 const SizedBox(height: 16),
+                
+                // Historical Entry Toggle
+                SwitchListTile(
+                  title: const Text('Historical Entry'),
+                  subtitle: Text(
+                    isHistoricalEntry 
+                      ? 'Past liability record (no account impact)' 
+                      : 'Current liability (will set payment account)'
+                  ),
+                  value: isHistoricalEntry,
+                  onChanged: (value) {
+                    setState(() {
+                      isHistoricalEntry = value;
+                      if (value) selectedAccount = null; // Clear account for historical
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                
+                // Account Selection (for settlement when paid)
+                Consumer(
+                  builder: (context, ref, child) {
+                    final accountState = ref.watch(accountProvider);
+                    final accounts = accountState.accounts;
+                    
+                    if (accounts.isEmpty) {
+                      return const Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: Text(
+                            'No accounts available. Please create an account first.',
+                            style: TextStyle(color: Colors.orange),
+                          ),
+                        ),
+                      );
+                    }
+                    
+                    return DropdownButtonFormField<Account>(
+                      value: selectedAccount,
+                      decoration: const InputDecoration(
+                        labelText: 'Payment Account',
+                        border: OutlineInputBorder(),
+                        helperText: 'Account to debit when paid',
+                      ),
+                      items: accounts.map((account) {
+                        return DropdownMenuItem<Account>(
+                          value: account,
+                          child: Text(
+                            '${account.name} (৳${account.balance.toStringAsFixed(2)})',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (Account? account) {
+                        setState(() {
+                          selectedAccount = account;
+                        });
+                      },
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                
                 TextField(
                   controller: descriptionController,
                   decoration: const InputDecoration(
@@ -929,16 +1102,38 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                 final amount = double.tryParse(amountController.text) ?? 0.0;
                 final description = descriptionController.text.trim();
 
+                // Validation
+                if (personName.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please enter person name')),
+                  );
+                  return;
+                }
+                
+                if (amount <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please enter valid amount')),
+                  );
+                  return;
+                }
+
                 if (personName.isNotEmpty && amount > 0) {
                   ref.read(liabilityProvider.notifier).addLiability(
                         personName: personName,
                         amount: amount,
                         dueDate: selectedDueDate,
                         description: description.isNotEmpty ? description : null,
+                        isHistoricalEntry: isHistoricalEntry,
+                        accountId: selectedAccount?.id
                       );
                   Navigator.pop(context);
+                  
+                  final message = isHistoricalEntry 
+                    ? 'Historical liability record added successfully!'
+                    : 'Liability added with payment account: ${selectedAccount?.name ?? 'None'}';
+                    
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Liability added successfully!')),
+                    SnackBar(content: Text(message)),
                   );
                 }
               },
@@ -1042,7 +1237,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
             ),
             ElevatedButton(
               onPressed: () {
-                ref.read(loanProvider.notifier).markLoanAsReturned(loan.id, returnDate);
+                ref.read(loanProvider.notifier).markLoanAsReturned(loan.id);
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Loan marked as returned!')),
@@ -1055,4 +1250,5 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
       ),
     );
   }
+
 }

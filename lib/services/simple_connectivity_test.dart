@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 class SimpleConnectivityTest {
   static Future<void> testConnection() async {
     final urls = [
+      'http://103.51.129.29:3000', // Primary VPS endpoint
       'http://127.0.0.1:3000',
       'http://localhost:3000', 
       'http://0.0.0.0:3000',

@@ -8,6 +8,9 @@ class Liability {
   final String? description;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final bool isHistoricalEntry; // true for past entries, false for new liabilities
+  final String? accountId; // Account to debit/credit when settling liability
+  final String? transactionId; // Associated transaction ID for account operations
 
   Liability({
     required this.id,
@@ -19,6 +22,9 @@ class Liability {
     this.description,
     required this.createdAt,
     required this.updatedAt,
+    this.isHistoricalEntry = false,
+    this.accountId,
+    this.transactionId,
   });
 
   factory Liability.fromJson(Map<String, dynamic> json) {
@@ -32,6 +38,9 @@ class Liability {
       description: json['description'],
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
+      isHistoricalEntry: json['isHistoricalEntry'] ?? false,
+      accountId: json['accountId'],
+      transactionId: json['transactionId'],
     );
   }
 
@@ -46,6 +55,9 @@ class Liability {
       'description': description,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
+      'isHistoricalEntry': isHistoricalEntry,
+      'accountId': accountId,
+      'transactionId': transactionId,
     };
   }
 
@@ -59,6 +71,9 @@ class Liability {
     String? description,
     DateTime? createdAt,
     DateTime? updatedAt,
+    bool? isHistoricalEntry,
+    String? accountId,
+    String? transactionId,
   }) {
     return Liability(
       id: id ?? this.id,
@@ -70,6 +85,9 @@ class Liability {
       description: description ?? this.description,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      isHistoricalEntry: isHistoricalEntry ?? this.isHistoricalEntry,
+      accountId: accountId ?? this.accountId,
+      transactionId: transactionId ?? this.transactionId,
     );
   }
 

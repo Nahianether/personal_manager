@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 import '../models/liability.dart';
 import '../services/database_service.dart';
+import '../services/loan_liability_transaction_service.dart';
 
 class LiabilityState {
   final List<Liability> liabilities;
@@ -53,6 +53,7 @@ class LiabilityState {
 
 class LiabilityNotifier extends StateNotifier<LiabilityState> {
   final DatabaseService _databaseService = DatabaseService();
+  final LoanLiabilityTransactionService _transactionService = LoanLiabilityTransactionService();
 
   LiabilityNotifier() : super(LiabilityState(liabilities: [], isLoading: false));
 
@@ -73,21 +74,20 @@ class LiabilityNotifier extends StateNotifier<LiabilityState> {
     required DateTime dueDate,
     String currency = 'BDT',
     String? description,
+    required bool isHistoricalEntry,
+    String? accountId, // Account to use when settling
   }) async {
     try {
-      final liability = Liability(
-        id: const Uuid().v4(),
+      final liability = await _transactionService.createLiability(
         personName: personName,
         amount: amount,
         currency: currency,
         dueDate: dueDate,
-        isPaid: false,
         description: description,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        isHistoricalEntry: isHistoricalEntry,
+        accountId: accountId,
       );
 
-      await _databaseService.insertLiability(liability);
       state = state.copyWith(
         liabilities: [...state.liabilities, liability],
         error: null,
@@ -97,21 +97,20 @@ class LiabilityNotifier extends StateNotifier<LiabilityState> {
     }
   }
 
-  Future<void> markAsPaid(String liabilityId) async {
+  Future<void> markAsPaid(String liabilityId, {String? accountId}) async {
     try {
       final liabilityIndex = state.liabilities.indexWhere((l) => l.id == liabilityId);
       if (liabilityIndex == -1) return;
 
       final liability = state.liabilities[liabilityIndex];
-      final updatedLiability = liability.copyWith(
-        isPaid: true,
-        updatedAt: DateTime.now(),
+      
+      final settledLiability = await _transactionService.settleLiability(
+        liability,
+        settleAccountId: accountId,
       );
-
-      await _databaseService.insertLiability(updatedLiability);
       
       final updatedLiabilities = state.liabilities.map((l) {
-        return l.id == liabilityId ? updatedLiability : l;
+        return l.id == liabilityId ? settledLiability : l;
       }).toList();
       
       state = state.copyWith(liabilities: updatedLiabilities, error: null);
@@ -145,11 +144,7 @@ class LiabilityNotifier extends StateNotifier<LiabilityState> {
 
   Future<void> updateLiability(Liability liability) async {
     try {
-      final updatedLiability = liability.copyWith(
-        updatedAt: DateTime.now(),
-      );
-      
-      await _databaseService.insertLiability(updatedLiability);
+      final updatedLiability = await _transactionService.updateLiability(liability);
       
       final updatedLiabilities = state.liabilities.map((l) {
         return l.id == liability.id ? updatedLiability : l;

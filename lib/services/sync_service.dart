@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:sqflite/sqflite.dart';
 import 'database_service.dart';
-import 'api_service.dart';
+import 'enhanced_api_service.dart';
 import 'connectivity_service.dart';
 import '../models/account.dart';
 import '../models/transaction.dart' as transaction_model;
@@ -18,7 +18,7 @@ enum SyncStatus {
 class SyncService {
   static final SyncService _instance = SyncService._internal();
   final DatabaseService _databaseService = DatabaseService();
-  final ApiService _apiService = ApiService();
+  final EnhancedApiService _apiService = EnhancedApiService();
   
   Timer? _syncTimer;
   bool _isSyncing = false;

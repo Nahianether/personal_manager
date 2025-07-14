@@ -33,15 +33,91 @@ class DatabaseService {
     _database = await _initDatabase();
     return _database!;
   }
+  
+  // Method to reset database if it becomes corrupted or read-only
+  Future<void> resetDatabase() async {
+    try {
+      await _database?.close();
+      _database = null;
+      
+      String path = join(await getDatabasesPath(), 'personal_manager.db');
+      await deleteDatabase(path);
+      print('Database reset completed');
+      
+      // Reinitialize with fresh database
+      _database = await _initDatabase();
+      print('Database reinitialized successfully');
+    } catch (e) {
+      print('Error resetting database: $e');
+      rethrow;
+    }
+  }
 
   Future<Database> _initDatabase() async {
     String path = join(await getDatabasesPath(), 'personal_manager.db');
-    return await openDatabase(
-      path,
-      version: 6,
-      onCreate: _createTables,
-      onUpgrade: _upgradeDatabase,
-    );
+    print('Database path: $path');
+    
+    try {
+      final db = await openDatabase(
+        path,
+        version: 7,
+        onCreate: _createTables,
+        onUpgrade: _upgradeDatabase,
+      );
+      
+      // Test database write permissions
+      await _testDatabaseWritePermissions(db);
+      
+      return db;
+    } catch (e) {
+      print('Database initialization failed: $e');
+      
+      // If the database is read-only or corrupted, delete and recreate
+      if (e.toString().contains('readonly database') || e.toString().contains('1032')) {
+        print('Database is read-only, attempting to delete and recreate...');
+        
+        try {
+          // Close any existing connection
+          await _database?.close();
+          _database = null;
+          
+          // Delete the corrupted database file
+          await deleteDatabase(path);
+          print('Corrupted database deleted');
+          
+          // Create a fresh database
+          final db = await openDatabase(
+            path,
+            version: 7,
+            onCreate: _createTables,
+            onUpgrade: _upgradeDatabase,
+          );
+          
+          // Test write permissions again
+          await _testDatabaseWritePermissions(db);
+          print('New database created successfully');
+          
+          return db;
+        } catch (recreateError) {
+          print('Failed to recreate database: $recreateError');
+          rethrow;
+        }
+      }
+      
+      rethrow;
+    }
+  }
+  
+  Future<void> _testDatabaseWritePermissions(Database db) async {
+    try {
+      // Simple write test - just try to run a pragma command that writes to the database
+      await db.execute('PRAGMA user_version = 1');
+      await db.execute('PRAGMA user_version = 7'); // Reset to current version
+      print('Database write permissions OK');
+    } catch (e) {
+      print('Database write permission test failed: $e');
+      throw Exception('Database is read-only or permissions issue: $e');
+    }
   }
 
   Future<void> _createTables(Database db, int version) async {
@@ -90,7 +166,10 @@ class DatabaseService {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         sync_status TEXT NOT NULL DEFAULT 'pending',
-        last_synced_at TEXT
+        last_synced_at TEXT,
+        is_historical_entry INTEGER NOT NULL DEFAULT 0,
+        account_id TEXT,
+        transaction_id TEXT
       )
     ''');
 
@@ -106,7 +185,10 @@ class DatabaseService {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         sync_status TEXT NOT NULL DEFAULT 'pending',
-        last_synced_at TEXT
+        last_synced_at TEXT,
+        is_historical_entry INTEGER NOT NULL DEFAULT 0,
+        account_id TEXT,
+        transaction_id TEXT
       )
     ''');
 
@@ -222,6 +304,17 @@ class DatabaseService {
       
       await db.execute('ALTER TABLE liabilities ADD COLUMN sync_status TEXT NOT NULL DEFAULT "pending"');
       await db.execute('ALTER TABLE liabilities ADD COLUMN last_synced_at TEXT');
+    }
+    
+    if (oldVersion < 7) {
+      // Add new fields for loan and liability transaction tracking
+      await db.execute('ALTER TABLE loans ADD COLUMN is_historical_entry INTEGER NOT NULL DEFAULT 0');
+      await db.execute('ALTER TABLE loans ADD COLUMN account_id TEXT');
+      await db.execute('ALTER TABLE loans ADD COLUMN transaction_id TEXT');
+      
+      await db.execute('ALTER TABLE liabilities ADD COLUMN is_historical_entry INTEGER NOT NULL DEFAULT 0');
+      await db.execute('ALTER TABLE liabilities ADD COLUMN account_id TEXT');
+      await db.execute('ALTER TABLE liabilities ADD COLUMN transaction_id TEXT');
     }
   }
 
@@ -373,26 +466,44 @@ class DatabaseService {
   }
 
   Future<void> insertTransaction(transaction_model.Transaction transaction) async {
-    final db = await database;
-    await db.insert(
-      'transactions',
-      {
-        'id': transaction.id,
-        'account_id': transaction.accountId,
-        'type': transaction.type.toString().split('.').last,
-        'amount': transaction.amount,
-        'currency': transaction.currency,
-        'category': transaction.category,
-        'description': transaction.description,
-        'date': transaction.date.toIso8601String(),
-        'created_at': transaction.createdAt.toIso8601String(),
-        'sync_status': 'pending',
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-    
-    // Trigger immediate sync if connected
-    _triggerImmediateSync('transactions', transaction.id);
+    try {
+      final db = await database;
+      
+      // First verify the account exists
+      final accountCheck = await db.query(
+        'accounts',
+        where: 'id = ?',
+        whereArgs: [transaction.accountId],
+      );
+      
+      if (accountCheck.isEmpty) {
+        throw Exception('Account with ID ${transaction.accountId} does not exist');
+      }
+      
+      await db.insert(
+        'transactions',
+        {
+          'id': transaction.id,
+          'account_id': transaction.accountId,
+          'type': transaction.type.toString().split('.').last,
+          'amount': transaction.amount,
+          'currency': transaction.currency,
+          'category': transaction.category,
+          'description': transaction.description,
+          'date': transaction.date.toIso8601String(),
+          'created_at': transaction.createdAt.toIso8601String(),
+          'sync_status': 'pending',
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      
+      // Trigger immediate sync if connected
+      _triggerImmediateSync('transactions', transaction.id);
+    } catch (e) {
+      print('Error inserting transaction: $e');
+      print('Transaction data: ${transaction.toJson()}');
+      rethrow;
+    }
   }
 
   Future<void> updateAccountBalance(String accountId, double newBalance) async {
@@ -431,6 +542,9 @@ class DatabaseService {
         'description': maps[i]['description'],
         'createdAt': maps[i]['created_at'],
         'updatedAt': maps[i]['updated_at'],
+        'isHistoricalEntry': maps[i]['is_historical_entry'] == 1,
+        'accountId': maps[i]['account_id'],
+        'transactionId': maps[i]['transaction_id'],
       });
     });
   }
@@ -451,6 +565,9 @@ class DatabaseService {
         'created_at': loan.createdAt.toIso8601String(),
         'updated_at': loan.updatedAt.toIso8601String(),
         'sync_status': 'pending',
+        'is_historical_entry': loan.isHistoricalEntry ? 1 : 0,
+        'account_id': loan.accountId,
+        'transaction_id': loan.transactionId,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -482,6 +599,9 @@ class DatabaseService {
         'description': maps[i]['description'],
         'createdAt': maps[i]['created_at'],
         'updatedAt': maps[i]['updated_at'],
+        'isHistoricalEntry': maps[i]['is_historical_entry'] == 1,
+        'accountId': maps[i]['account_id'],
+        'transactionId': maps[i]['transaction_id'],
       });
     });
   }
@@ -501,6 +621,9 @@ class DatabaseService {
         'created_at': liability.createdAt.toIso8601String(),
         'updated_at': liability.updatedAt.toIso8601String(),
         'sync_status': 'pending',
+        'is_historical_entry': liability.isHistoricalEntry ? 1 : 0,
+        'account_id': liability.accountId,
+        'transaction_id': liability.transactionId,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );

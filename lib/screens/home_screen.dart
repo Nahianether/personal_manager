@@ -8,7 +8,6 @@ import '../providers/liability_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../models/transaction.dart';
-import '../models/account.dart';
 import '../models/category.dart';
 import '../widgets/category_selector.dart';
 import '../widgets/sync_status_widget.dart';
@@ -933,16 +932,9 @@ class _TransactionEntryScreenState extends ConsumerState<_TransactionEntryScreen
                       items: accountState.accounts.map((account) {
                         return DropdownMenuItem(
                           value: account.id,
-                          child: Row(
-                            children: [
-                              Icon(
-                                _getAccountIcon(account.type),
-                                size: 20,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(account.name),
-                            ],
+                          child: Text(
+                            account.name,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         );
                       }).toList(),
@@ -1124,22 +1116,4 @@ class _TransactionEntryScreenState extends ConsumerState<_TransactionEntryScreen
     );
   }
 
-  IconData _getAccountIcon(AccountType type) {
-    switch (type) {
-      case AccountType.wallet:
-        return Icons.account_balance_wallet_rounded;
-      case AccountType.bank:
-        return Icons.account_balance_rounded;
-      case AccountType.mobileBanking:
-        return Icons.phone_android_rounded;
-      case AccountType.cash:
-        return Icons.payments_rounded;
-      case AccountType.investment:
-        return Icons.trending_up_rounded;
-      case AccountType.savings:
-        return Icons.savings_rounded;
-      case AccountType.creditCard:
-        return Icons.credit_card_rounded;
-    }
-  }
 }

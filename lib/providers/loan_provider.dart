@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 import '../models/loan.dart';
 import '../services/database_service.dart';
+import '../services/loan_liability_transaction_service.dart';
 
 class LoanState {
   final List<Loan> loans;
@@ -41,6 +41,7 @@ class LoanState {
 
 class LoanNotifier extends StateNotifier<LoanState> {
   final DatabaseService _databaseService = DatabaseService();
+  final LoanLiabilityTransactionService _transactionService = LoanLiabilityTransactionService();
 
   LoanNotifier() : super(LoanState(loans: [], isLoading: false));
 
@@ -62,22 +63,20 @@ class LoanNotifier extends StateNotifier<LoanState> {
     DateTime? returnDate,
     String currency = 'BDT',
     String? description,
+    required bool isHistoricalEntry,
+    String? accountId, // Required for non-historical entries
   }) async {
     try {
-      final loan = Loan(
-        id: const Uuid().v4(),
+      final loan = await _transactionService.createLoan(
         personName: personName,
         amount: amount,
         currency: currency,
         loanDate: loanDate,
-        returnDate: returnDate,
-        isReturned: false,
         description: description,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        isHistoricalEntry: isHistoricalEntry,
+        accountId: accountId,
       );
 
-      await _databaseService.insertLoan(loan);
       state = state.copyWith(
         loans: [...state.loans, loan],
         error: null,
@@ -87,23 +86,21 @@ class LoanNotifier extends StateNotifier<LoanState> {
     }
   }
 
-  Future<void> markLoanAsReturned(String loanId, DateTime returnDate) async {
+  Future<void> markLoanAsReturned(String loanId, {DateTime? returnDate, String? accountId}) async {
     try {
       final loanIndex = state.loans.indexWhere((loan) => loan.id == loanId);
       if (loanIndex == -1) return;
 
       final loan = state.loans[loanIndex];
       
-      final updatedLoan = loan.copyWith(
-        isReturned: true,
+      final settledLoan = await _transactionService.settleLoan(
+        loan,
         returnDate: returnDate,
-        updatedAt: DateTime.now(),
+        settleAccountId: accountId,
       );
-
-      await _databaseService.insertLoan(updatedLoan);
       
       final updatedLoans = state.loans.map((l) {
-        return l.id == loanId ? updatedLoan : l;
+        return l.id == loanId ? settledLoan : l;
       }).toList();
       
       state = state.copyWith(loans: updatedLoans, error: null);
@@ -114,11 +111,7 @@ class LoanNotifier extends StateNotifier<LoanState> {
 
   Future<void> updateLoan(Loan loan) async {
     try {
-      final updatedLoan = loan.copyWith(
-        updatedAt: DateTime.now(),
-      );
-      
-      await _databaseService.insertLoan(updatedLoan);
+      final updatedLoan = await _transactionService.updateLoan(loan);
       
       final updatedLoans = state.loans.map((l) {
         return l.id == loan.id ? updatedLoan : l;

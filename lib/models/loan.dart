@@ -9,6 +9,9 @@ class Loan {
   final String? description;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final bool isHistoricalEntry; // true for past entries, false for new loans
+  final String? accountId; // Account to debit/credit when giving/settling loan
+  final String? transactionId; // Associated transaction ID for account operations
 
   Loan({
     required this.id,
@@ -21,6 +24,9 @@ class Loan {
     this.description,
     required this.createdAt,
     required this.updatedAt,
+    this.isHistoricalEntry = false,
+    this.accountId,
+    this.transactionId,
   });
 
   factory Loan.fromJson(Map<String, dynamic> json) {
@@ -35,6 +41,9 @@ class Loan {
       description: json['description'],
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
+      isHistoricalEntry: json['isHistoricalEntry'] ?? false,
+      accountId: json['accountId'],
+      transactionId: json['transactionId'],
     );
   }
 
@@ -50,6 +59,9 @@ class Loan {
       'description': description,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
+      'isHistoricalEntry': isHistoricalEntry,
+      'accountId': accountId,
+      'transactionId': transactionId,
     };
   }
 
@@ -64,6 +76,9 @@ class Loan {
     String? description,
     DateTime? createdAt,
     DateTime? updatedAt,
+    bool? isHistoricalEntry,
+    String? accountId,
+    String? transactionId,
   }) {
     return Loan(
       id: id ?? this.id,
@@ -76,6 +91,9 @@ class Loan {
       description: description ?? this.description,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      isHistoricalEntry: isHistoricalEntry ?? this.isHistoricalEntry,
+      accountId: accountId ?? this.accountId,
+      transactionId: transactionId ?? this.transactionId,
     );
   }
 
