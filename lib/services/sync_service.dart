@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart';
 import 'database_service.dart';
 import 'enhanced_api_service.dart';
 import 'connectivity_service.dart';
+import 'auth_service.dart';
 import '../models/account.dart';
 import '../models/transaction.dart' as transaction_model;
 import '../models/loan.dart';
@@ -22,6 +23,7 @@ class SyncService {
   
   Timer? _syncTimer;
   bool _isSyncing = false;
+  StreamSubscription? _connectivitySubscription;
   final StreamController<SyncStatus> _syncStatusController = StreamController<SyncStatus>.broadcast();
   
   factory SyncService() {
@@ -32,12 +34,17 @@ class SyncService {
 
   Stream<SyncStatus> get syncStatusStream => _syncStatusController.stream;
   bool get isSyncing => _isSyncing;
+  
+  // Helper method to get current user ID
+  Future<String?> _getCurrentUserId() async {
+    return await AuthService().getUserId();
+  }
 
   Future<void> initialize() async {
     await ConnectivityService.initialize();
     
-    ConnectivityService.connectivityStream.listen((isConnected) {
-      if (isConnected && !_isSyncing) {
+    _connectivitySubscription = ConnectivityService.connectivityStream.listen((isConnected) {
+      if (isConnected && !_isSyncing && !_syncStatusController.isClosed) {
         syncPendingData();
       }
     });
@@ -52,22 +59,28 @@ class SyncService {
 
   void _startPeriodicSync() {
     _syncTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
-      if (ConnectivityService.isConnected && !_isSyncing) {
+      if (ConnectivityService.isConnected && !_isSyncing && !_syncStatusController.isClosed) {
         syncPendingData();
       }
     });
   }
 
   Future<void> syncPendingData() async {
-    if (_isSyncing) return;
+    if (_isSyncing || _syncStatusController.isClosed) return;
     
     _isSyncing = true;
-    _syncStatusController.add(SyncStatus.syncing);
+    
+    // Check if controller is closed before adding events
+    if (!_syncStatusController.isClosed) {
+      _syncStatusController.add(SyncStatus.syncing);
+    }
     
     try {
       final serverReachable = await _apiService.isServerReachable();
       if (!serverReachable) {
-        _syncStatusController.add(SyncStatus.failed);
+        if (!_syncStatusController.isClosed) {
+          _syncStatusController.add(SyncStatus.failed);
+        }
         return;
       }
 
@@ -76,9 +89,13 @@ class SyncService {
       await _syncPendingLoans();
       await _syncPendingLiabilities();
       
-      _syncStatusController.add(SyncStatus.synced);
+      if (!_syncStatusController.isClosed) {
+        _syncStatusController.add(SyncStatus.synced);
+      }
     } catch (e) {
-      _syncStatusController.add(SyncStatus.failed);
+      if (!_syncStatusController.isClosed) {
+        _syncStatusController.add(SyncStatus.failed);
+      }
     } finally {
       _isSyncing = false;
     }
@@ -86,10 +103,12 @@ class SyncService {
 
   Future<void> _syncPendingAccounts() async {
     final db = await _databaseService.database;
+    final userId = await _getCurrentUserId();
+    
     final pendingAccounts = await db.query(
       'accounts',
-      where: 'sync_status = ?',
-      whereArgs: ['pending'],
+      where: userId != null ? 'sync_status = ? AND user_id = ?' : 'sync_status = ?',
+      whereArgs: userId != null ? ['pending', userId] : ['pending'],
     );
 
     for (final accountData in pendingAccounts) {
@@ -117,10 +136,12 @@ class SyncService {
 
   Future<void> _syncPendingTransactions() async {
     final db = await _databaseService.database;
+    final userId = await _getCurrentUserId();
+    
     final pendingTransactions = await db.query(
       'transactions',
-      where: 'sync_status = ?',
-      whereArgs: ['pending'],
+      where: userId != null ? 'sync_status = ? AND user_id = ?' : 'sync_status = ?',
+      whereArgs: userId != null ? ['pending', userId] : ['pending'],
     );
 
     for (final transactionData in pendingTransactions) {
@@ -149,10 +170,12 @@ class SyncService {
 
   Future<void> _syncPendingLoans() async {
     final db = await _databaseService.database;
+    final userId = await _getCurrentUserId();
+    
     final pendingLoans = await db.query(
       'loans',
-      where: 'sync_status = ?',
-      whereArgs: ['pending'],
+      where: userId != null ? 'sync_status = ? AND user_id = ?' : 'sync_status = ?',
+      whereArgs: userId != null ? ['pending', userId] : ['pending'],
     );
 
     for (final loanData in pendingLoans) {
@@ -182,10 +205,12 @@ class SyncService {
 
   Future<void> _syncPendingLiabilities() async {
     final db = await _databaseService.database;
+    final userId = await _getCurrentUserId();
+    
     final pendingLiabilities = await db.query(
       'liabilities',
-      where: 'sync_status = ?',
-      whereArgs: ['pending'],
+      where: userId != null ? 'sync_status = ? AND user_id = ?' : 'sync_status = ?',
+      whereArgs: userId != null ? ['pending', userId] : ['pending'],
     );
 
     for (final liabilityData in pendingLiabilities) {
@@ -243,25 +268,34 @@ class SyncService {
 
   Future<int> getPendingItemsCount() async {
     final db = await _databaseService.database;
+    final userId = await _getCurrentUserId();
     
     final accountsCount = Sqflite.firstIntValue(await db.rawQuery(
-      'SELECT COUNT(*) FROM accounts WHERE sync_status = ?',
-      ['pending']
+      userId != null 
+        ? 'SELECT COUNT(*) FROM accounts WHERE sync_status = ? AND user_id = ?'
+        : 'SELECT COUNT(*) FROM accounts WHERE sync_status = ?',
+      userId != null ? ['pending', userId] : ['pending']
     )) ?? 0;
     
     final transactionsCount = Sqflite.firstIntValue(await db.rawQuery(
-      'SELECT COUNT(*) FROM transactions WHERE sync_status = ?',
-      ['pending']
+      userId != null 
+        ? 'SELECT COUNT(*) FROM transactions WHERE sync_status = ? AND user_id = ?'
+        : 'SELECT COUNT(*) FROM transactions WHERE sync_status = ?',
+      userId != null ? ['pending', userId] : ['pending']
     )) ?? 0;
     
     final loansCount = Sqflite.firstIntValue(await db.rawQuery(
-      'SELECT COUNT(*) FROM loans WHERE sync_status = ?',
-      ['pending']
+      userId != null 
+        ? 'SELECT COUNT(*) FROM loans WHERE sync_status = ? AND user_id = ?'
+        : 'SELECT COUNT(*) FROM loans WHERE sync_status = ?',
+      userId != null ? ['pending', userId] : ['pending']
     )) ?? 0;
     
     final liabilitiesCount = Sqflite.firstIntValue(await db.rawQuery(
-      'SELECT COUNT(*) FROM liabilities WHERE sync_status = ?',
-      ['pending']
+      userId != null 
+        ? 'SELECT COUNT(*) FROM liabilities WHERE sync_status = ? AND user_id = ?'
+        : 'SELECT COUNT(*) FROM liabilities WHERE sync_status = ?',
+      userId != null ? ['pending', userId] : ['pending']
     )) ?? 0;
     
     final total = accountsCount + transactionsCount + loansCount + liabilitiesCount;
@@ -279,11 +313,19 @@ class SyncService {
 
   Future<void> forceSyncAll() async {
     final db = await _databaseService.database;
+    final userId = await _getCurrentUserId();
     
-    await db.update('accounts', {'sync_status': 'pending'});
-    await db.update('transactions', {'sync_status': 'pending'});
-    await db.update('loans', {'sync_status': 'pending'});
-    await db.update('liabilities', {'sync_status': 'pending'});
+    if (userId != null) {
+      await db.update('accounts', {'sync_status': 'pending'}, where: 'user_id = ?', whereArgs: [userId]);
+      await db.update('transactions', {'sync_status': 'pending'}, where: 'user_id = ?', whereArgs: [userId]);
+      await db.update('loans', {'sync_status': 'pending'}, where: 'user_id = ?', whereArgs: [userId]);
+      await db.update('liabilities', {'sync_status': 'pending'}, where: 'user_id = ?', whereArgs: [userId]);
+    } else {
+      await db.update('accounts', {'sync_status': 'pending'});
+      await db.update('transactions', {'sync_status': 'pending'});
+      await db.update('loans', {'sync_status': 'pending'});
+      await db.update('liabilities', {'sync_status': 'pending'});
+    }
     
     await syncPendingData();
   }
@@ -311,7 +353,18 @@ class SyncService {
 
   void dispose() {
     _syncTimer?.cancel();
-    _syncStatusController.close();
+    _syncTimer = null;
+    _isSyncing = false;
+    
+    _connectivitySubscription?.cancel();
+    _connectivitySubscription = null;
+    
+    if (!_syncStatusController.isClosed) {
+      _syncStatusController.close();
+    }
+    
     ConnectivityService.dispose();
   }
+  
+  bool get isDisposed => _syncStatusController.isClosed;
 }

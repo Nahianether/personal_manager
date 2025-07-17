@@ -6,6 +6,8 @@ import '../providers/transaction_provider.dart';
 import '../providers/loan_provider.dart';
 import '../providers/liability_provider.dart';
 import '../providers/category_provider.dart';
+import '../providers/auth_provider.dart';
+import '../providers/sync_provider.dart';
 import '../services/database_service.dart';
 import '../services/excel_service.dart';
 
@@ -15,6 +17,15 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeState = ref.watch(themeProvider);
+    final authState = ref.watch(authProvider);
+    
+    // Listen to auth state changes and navigate to login when signed out
+    ref.listen<AuthState>(authProvider, (previous, next) {
+      if (previous?.isAuthenticated == true && next.isAuthenticated == false) {
+        // User has been signed out, pop all routes and let main app handle navigation
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    });
     
     return Scaffold(
       appBar: AppBar(
@@ -24,6 +35,46 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Account',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  if (authState.user != null) ...[
+                    _buildInfoRow(
+                      context,
+                      Icons.person,
+                      'Name',
+                      authState.user!.name,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildInfoRow(
+                      context,
+                      Icons.email,
+                      'Email',
+                      authState.user!.email,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  _buildActionRow(
+                    context,
+                    Icons.logout,
+                    'Sign Out',
+                    'Sign out of your account',
+                    () => _showLogoutDialog(context, ref),
+                    isDestructive: true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -422,8 +473,8 @@ class SettingsScreen extends ConsumerWidget {
         ),
       );
 
-      // Delete all data from database
-      await DatabaseService().deleteAllData();
+      // Delete all data from database for current user only
+      await DatabaseService().clearAllUserData();
 
       // Refresh all providers
       ref.invalidate(accountProvider);
@@ -590,6 +641,55 @@ class SettingsScreen extends ConsumerWidget {
           ),
         );
       }
+    }
+  }
+
+  void _showLogoutDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _performSignout(ref);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _performSignout(WidgetRef ref) async {
+    try {
+      print('🔄 Starting complete signout process...');
+      
+      // Sign out from auth provider (this will clear all user data)
+      await ref.read(authProvider.notifier).signout();
+      
+      // Invalidate all other providers to clear their state
+      ref.invalidate(accountProvider);
+      ref.invalidate(transactionProvider);
+      ref.invalidate(loanProvider);
+      ref.invalidate(liabilityProvider);
+      ref.invalidate(categoryProvider);
+      ref.invalidate(syncProvider);
+      
+      print('✅ Complete signout process finished');
+    } catch (e) {
+      print('❌ Error during signout: $e');
+      // Even if there's an error, the auth state should be cleared
+      // and the user will be redirected to login screen
     }
   }
 }

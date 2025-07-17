@@ -5,6 +5,7 @@ import '../models/transaction.dart' as transaction_model;
 import '../models/loan.dart';
 import '../models/liability.dart';
 import 'database_service.dart';
+import 'auth_service.dart';
 
 class EnhancedApiService {
   static final EnhancedApiService _instance = EnhancedApiService._internal();
@@ -31,13 +32,28 @@ class EnhancedApiService {
       ));
     }
 
-    // Add error interceptor for better error handling
+    // Add authentication interceptor
     _dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        // Add authentication token to all requests
+        final token = await AuthService().getToken();
+        if (token != null) {
+          options.headers['Authorization'] = 'Bearer $token';
+        }
+        handler.next(options);
+      },
       onError: (error, handler) {
         print('🚨 API Error: ${error.response?.statusCode} - ${error.message}');
         if (error.response?.data != null) {
           print('🚨 Error Data: ${error.response?.data}');
         }
+        
+        // Handle unauthorized errors
+        if (error.response?.statusCode == 401) {
+          // Token might be expired, sign out user
+          AuthService().signout();
+        }
+        
         handler.next(error);
       },
     ));
@@ -240,7 +256,7 @@ class EnhancedApiService {
       } else {
         // Some other error checking account
         print('⚠️ Error checking account $accountId: ${e.response?.statusCode}');
-        throw e;
+        rethrow;
       }
     }
   }

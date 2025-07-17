@@ -7,6 +7,7 @@ import '../models/liability.dart';
 import '../models/category.dart';
 import 'sync_service.dart';
 import 'connectivity_service.dart';
+import 'auth_service.dart';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -17,6 +18,11 @@ class DatabaseService {
   }
 
   DatabaseService._internal();
+
+  // Helper method to get current user ID
+  Future<String?> _getCurrentUserId() async {
+    return await AuthService().getUserId();
+  }
 
   // Trigger immediate sync if connected
   void _triggerImmediateSync(String table, String id) {
@@ -60,13 +66,16 @@ class DatabaseService {
     try {
       final db = await openDatabase(
         path,
-        version: 7,
+        version: 8,
         onCreate: _createTables,
         onUpgrade: _upgradeDatabase,
       );
       
       // Test database write permissions
       await _testDatabaseWritePermissions(db);
+      
+      // Reset to current version
+      await db.execute('PRAGMA user_version = 8');
       
       return db;
     } catch (e) {
@@ -88,7 +97,7 @@ class DatabaseService {
           // Create a fresh database
           final db = await openDatabase(
             path,
-            version: 7,
+            version: 8,
             onCreate: _createTables,
             onUpgrade: _upgradeDatabase,
           );
@@ -124,6 +133,7 @@ class DatabaseService {
     await db.execute('''
       CREATE TABLE accounts (
         id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
         name TEXT NOT NULL,
         type TEXT NOT NULL,
         balance REAL NOT NULL,
@@ -139,6 +149,7 @@ class DatabaseService {
     await db.execute('''
       CREATE TABLE transactions (
         id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
         account_id TEXT NOT NULL,
         type TEXT NOT NULL,
         amount REAL NOT NULL,
@@ -156,6 +167,7 @@ class DatabaseService {
     await db.execute('''
       CREATE TABLE loans (
         id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
         person_name TEXT NOT NULL,
         amount REAL NOT NULL,
         currency TEXT NOT NULL DEFAULT 'BDT',
@@ -176,6 +188,7 @@ class DatabaseService {
     await db.execute('''
       CREATE TABLE liabilities (
         id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
         person_name TEXT NOT NULL,
         amount REAL NOT NULL,
         currency TEXT NOT NULL DEFAULT 'BDT',
@@ -316,6 +329,23 @@ class DatabaseService {
       await db.execute('ALTER TABLE liabilities ADD COLUMN account_id TEXT');
       await db.execute('ALTER TABLE liabilities ADD COLUMN transaction_id TEXT');
     }
+    
+    if (oldVersion < 8) {
+      // Add user_id columns to all tables for user-specific data
+      await db.execute('ALTER TABLE accounts ADD COLUMN user_id TEXT NOT NULL DEFAULT ""');
+      await db.execute('ALTER TABLE transactions ADD COLUMN user_id TEXT NOT NULL DEFAULT ""');
+      await db.execute('ALTER TABLE loans ADD COLUMN user_id TEXT NOT NULL DEFAULT ""');
+      await db.execute('ALTER TABLE liabilities ADD COLUMN user_id TEXT NOT NULL DEFAULT ""');
+      
+      // For existing data, we'll need to assign the current user ID
+      final currentUserId = await AuthService().getUserId();
+      if (currentUserId != null) {
+        await db.execute('UPDATE accounts SET user_id = ? WHERE user_id = ""', [currentUserId]);
+        await db.execute('UPDATE transactions SET user_id = ? WHERE user_id = ""', [currentUserId]);
+        await db.execute('UPDATE loans SET user_id = ? WHERE user_id = ""', [currentUserId]);
+        await db.execute('UPDATE liabilities SET user_id = ? WHERE user_id = ""', [currentUserId]);
+      }
+    }
   }
 
   Future<void> _insertDefaultCategories(Database db) async {
@@ -339,7 +369,14 @@ class DatabaseService {
 
   Future<List<Account>> getAllAccounts() async {
     final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query('accounts');
+    final userId = await _getCurrentUserId();
+    
+    final List<Map<String, dynamic>> maps = await db.query(
+      'accounts',
+      where: userId != null ? 'user_id = ?' : null,
+      whereArgs: userId != null ? [userId] : null,
+    );
+    
     return List.generate(maps.length, (i) {
       return Account.fromJson({
         'id': maps[i]['id'],
@@ -356,10 +393,13 @@ class DatabaseService {
 
   Future<void> insertAccount(Account account) async {
     final db = await database;
+    final userId = await _getCurrentUserId();
+    
     await db.insert(
       'accounts',
       {
         'id': account.id,
+        'user_id': userId ?? '',
         'name': account.name,
         'type': account.type.toString().split('.').last,
         'balance': account.balance,
@@ -378,6 +418,8 @@ class DatabaseService {
 
   Future<void> updateAccount(Account account) async {
     final db = await database;
+    final userId = await _getCurrentUserId();
+    
     await db.update(
       'accounts',
       {
@@ -389,35 +431,67 @@ class DatabaseService {
         'updated_at': account.updatedAt.toIso8601String(),
         'sync_status': 'pending',
       },
-      where: 'id = ?',
-      whereArgs: [account.id],
+      where: userId != null ? 'id = ? AND user_id = ?' : 'id = ?',
+      whereArgs: userId != null ? [account.id, userId] : [account.id],
     );
   }
 
   Future<void> deleteAccount(String id) async {
     final db = await database;
+    final userId = await _getCurrentUserId();
     
     // First delete all transactions associated with this account
     await db.delete(
       'transactions',
-      where: 'account_id = ?',
-      whereArgs: [id],
+      where: userId != null ? 'account_id = ? AND user_id = ?' : 'account_id = ?',
+      whereArgs: userId != null ? [id, userId] : [id],
     );
     
     // Then delete the account
     await db.delete(
       'accounts',
-      where: 'id = ?',
-      whereArgs: [id],
+      where: userId != null ? 'id = ? AND user_id = ?' : 'id = ?',
+      whereArgs: userId != null ? [id, userId] : [id],
     );
   }
 
   Future<List<transaction_model.Transaction>> getAllTransactions() async {
     final db = await database;
+    final userId = await _getCurrentUserId();
+    
     final List<Map<String, dynamic>> maps = await db.query(
       'transactions',
+      where: userId != null ? 'user_id = ?' : null,
+      whereArgs: userId != null ? [userId] : null,
       orderBy: 'date DESC',
     );
+    
+    return List.generate(maps.length, (i) {
+      return transaction_model.Transaction.fromJson({
+        'id': maps[i]['id'],
+        'accountId': maps[i]['account_id'],
+        'type': maps[i]['type'],
+        'amount': maps[i]['amount'],
+        'currency': maps[i]['currency'],
+        'category': maps[i]['category'],
+        'description': maps[i]['description'],
+        'date': maps[i]['date'],
+        'createdAt': maps[i]['created_at'],
+      });
+    });
+  }
+
+  Future<List<transaction_model.Transaction>> getTransactionsByAccount(String accountId) async {
+    final db = await database;
+    final userId = await _getCurrentUserId();
+    
+    final List<Map<String, dynamic>> maps = await db.query(
+      'transactions',
+      where: userId != null ? 'account_id = ? AND user_id = ?' : 'account_id = ?',
+      whereArgs: userId != null ? [accountId, userId] : [accountId],
+      orderBy: 'date DESC',
+    );
+    
     return List.generate(maps.length, (i) {
       return transaction_model.Transaction.fromJson({
         'id': maps[i]['id'],
@@ -435,55 +509,36 @@ class DatabaseService {
 
   Future<void> deleteTransaction(String id) async {
     final db = await database;
+    final userId = await _getCurrentUserId();
+    
     await db.delete(
       'transactions',
-      where: 'id = ?',
-      whereArgs: [id],
+      where: userId != null ? 'id = ? AND user_id = ?' : 'id = ?',
+      whereArgs: userId != null ? [id, userId] : [id],
     );
-  }
-
-  Future<List<transaction_model.Transaction>> getTransactionsByAccount(String accountId) async {
-    final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query(
-      'transactions',
-      where: 'account_id = ?',
-      whereArgs: [accountId],
-      orderBy: 'date DESC',
-    );
-    return List.generate(maps.length, (i) {
-      return transaction_model.Transaction.fromJson({
-        'id': maps[i]['id'],
-        'accountId': maps[i]['account_id'],
-        'type': maps[i]['type'],
-        'amount': maps[i]['amount'],
-        'currency': maps[i]['currency'],
-        'category': maps[i]['category'],
-        'description': maps[i]['description'],
-        'date': maps[i]['date'],
-        'createdAt': maps[i]['created_at'],
-      });
-    });
   }
 
   Future<void> insertTransaction(transaction_model.Transaction transaction) async {
     try {
       final db = await database;
+      final userId = await _getCurrentUserId();
       
-      // First verify the account exists
+      // First verify the account exists and belongs to the user
       final accountCheck = await db.query(
         'accounts',
-        where: 'id = ?',
-        whereArgs: [transaction.accountId],
+        where: userId != null ? 'id = ? AND user_id = ?' : 'id = ?',
+        whereArgs: userId != null ? [transaction.accountId, userId] : [transaction.accountId],
       );
       
       if (accountCheck.isEmpty) {
-        throw Exception('Account with ID ${transaction.accountId} does not exist');
+        throw Exception('Account with ID ${transaction.accountId} does not exist or does not belong to user');
       }
       
       await db.insert(
         'transactions',
         {
           'id': transaction.id,
+          'user_id': userId ?? '',
           'account_id': transaction.accountId,
           'type': transaction.type.toString().split('.').last,
           'amount': transaction.amount,
@@ -508,14 +563,16 @@ class DatabaseService {
 
   Future<void> updateAccountBalance(String accountId, double newBalance) async {
     final db = await database;
+    final userId = await _getCurrentUserId();
+    
     await db.update(
       'accounts',
       {
         'balance': newBalance,
         'updated_at': DateTime.now().toIso8601String(),
       },
-      where: 'id = ?',
-      whereArgs: [accountId],
+      where: userId != null ? 'id = ? AND user_id = ?' : 'id = ?',
+      whereArgs: userId != null ? [accountId, userId] : [accountId],
     );
   }
 
@@ -529,7 +586,14 @@ class DatabaseService {
 
   Future<List<Loan>> getAllLoans() async {
     final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query('loans');
+    final userId = await _getCurrentUserId();
+    
+    final List<Map<String, dynamic>> maps = await db.query(
+      'loans',
+      where: userId != null ? 'user_id = ?' : null,
+      whereArgs: userId != null ? [userId] : null,
+    );
+    
     return List.generate(maps.length, (i) {
       return Loan.fromJson({
         'id': maps[i]['id'],
@@ -551,10 +615,13 @@ class DatabaseService {
 
   Future<void> insertLoan(Loan loan) async {
     final db = await database;
+    final userId = await _getCurrentUserId();
+    
     await db.insert(
       'loans',
       {
         'id': loan.id,
+        'user_id': userId ?? '',
         'person_name': loan.personName,
         'amount': loan.amount,
         'currency': loan.currency,
@@ -578,16 +645,25 @@ class DatabaseService {
 
   Future<void> deleteLoan(String id) async {
     final db = await database;
+    final userId = await _getCurrentUserId();
+    
     await db.delete(
       'loans',
-      where: 'id = ?',
-      whereArgs: [id],
+      where: userId != null ? 'id = ? AND user_id = ?' : 'id = ?',
+      whereArgs: userId != null ? [id, userId] : [id],
     );
   }
 
   Future<List<Liability>> getAllLiabilities() async {
     final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query('liabilities');
+    final userId = await _getCurrentUserId();
+    
+    final List<Map<String, dynamic>> maps = await db.query(
+      'liabilities',
+      where: userId != null ? 'user_id = ?' : null,
+      whereArgs: userId != null ? [userId] : null,
+    );
+    
     return List.generate(maps.length, (i) {
       return Liability.fromJson({
         'id': maps[i]['id'],
@@ -608,10 +684,13 @@ class DatabaseService {
 
   Future<void> insertLiability(Liability liability) async {
     final db = await database;
+    final userId = await _getCurrentUserId();
+    
     await db.insert(
       'liabilities',
       {
         'id': liability.id,
+        'user_id': userId ?? '',
         'person_name': liability.personName,
         'amount': liability.amount,
         'currency': liability.currency,
@@ -634,10 +713,12 @@ class DatabaseService {
 
   Future<void> deleteLiability(String id) async {
     final db = await database;
+    final userId = await _getCurrentUserId();
+    
     await db.delete(
       'liabilities',
-      where: 'id = ?',
-      whereArgs: [id],
+      where: userId != null ? 'id = ? AND user_id = ?' : 'id = ?',
+      whereArgs: userId != null ? [id, userId] : [id],
     );
   }
 
@@ -760,6 +841,36 @@ class DatabaseService {
       // Delete all custom categories (keep default ones)
       await txn.delete('categories', where: 'is_default = 0');
     });
+  }
+  
+  Future<void> clearAllUserData() async {
+    final db = await database;
+    final userId = await _getCurrentUserId();
+    
+    if (userId != null) {
+      print('🗑️ Clearing data for user: $userId');
+      await clearSpecificUserData(userId);
+      print('✅ User data cleared from database');
+    } else {
+      print('⚠️ No user ID found, clearing all data');
+      await deleteAllData();
+    }
+  }
+  
+  Future<void> clearSpecificUserData(String userId) async {
+    final db = await database;
+    
+    print('🗑️ Clearing data for specific user: $userId');
+    
+    await db.transaction((txn) async {
+      // Delete all user-specific data
+      await txn.delete('transactions', where: 'user_id = ?', whereArgs: [userId]);
+      await txn.delete('accounts', where: 'user_id = ?', whereArgs: [userId]);
+      await txn.delete('loans', where: 'user_id = ?', whereArgs: [userId]);
+      await txn.delete('liabilities', where: 'user_id = ?', whereArgs: [userId]);
+    });
+    
+    print('✅ Specific user data cleared from database');
   }
 
   // Export all data to a structured map for Excel export
