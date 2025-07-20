@@ -69,7 +69,7 @@ class AuthService {
     required String password,
   }) async {
     try {
-      final response = await _dio.post('/auth/signin', data: {
+      final response = await _dio.post('/auth/login', data: {
         'email': email.trim().toLowerCase(),
         'password': password,
       });

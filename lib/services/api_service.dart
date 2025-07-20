@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 import '../models/account.dart';
 import '../models/transaction.dart' as transaction_model;
@@ -22,6 +23,9 @@ class ApiService {
       headers: ApiConfig.defaultHeaders,
     ));
     
+    // Add authentication interceptor
+    _addAuthInterceptor();
+    
     if (ApiConfig.enableLogging) {
       _dio.interceptors.add(LogInterceptor(
         requestBody: true,
@@ -31,15 +35,50 @@ class ApiService {
     }
   }
 
+  void _addAuthInterceptor() {
+    _dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        // Get token from SharedPreferences
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final token = prefs.getString('auth_token');
+          if (token != null) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
+        } catch (e) {
+          print('Error getting auth token: $e');
+        }
+        handler.next(options);
+      },
+      onError: (error, handler) async {
+        if (error.response?.statusCode == 401) {
+          // Token expired or invalid, clear stored data
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.remove('auth_token');
+            await prefs.remove('user_id');
+            await prefs.remove('user_name');
+            await prefs.remove('user_email');
+            await prefs.setBool('is_logged_in', false);
+            print('🔄 Cleared expired auth data');
+          } catch (e) {
+            print('Error clearing auth data: $e');
+          }
+        }
+        handler.next(error);
+      },
+    ));
+  }
+
   // Account API endpoints
   Future<bool> syncAccount(Account account) async {
     try {
       final accountData = account.toJson();
       print('📤 ACCOUNT API CALL:');
-      print('  URL: POST /accounts');
+      print('  URL: POST /api/accounts');
       print('  Body: $accountData');
       
-      final response = await _dio.post('/accounts', data: accountData);
+      final response = await _dio.post('/api/accounts', data: accountData);
       
       print('📥 ACCOUNT API RESPONSE:');
       print('  Status: ${response.statusCode}');
@@ -54,7 +93,7 @@ class ApiService {
 
   Future<bool> updateAccount(Account account) async {
     try {
-      final response = await _dio.put('/accounts/${account.id}', data: account.toJson());
+      final response = await _dio.put('/api/accounts/${account.id}', data: account.toJson());
       return response.statusCode == 200;
     } catch (e) {
       print('Error updating account: $e');
@@ -64,7 +103,7 @@ class ApiService {
 
   Future<bool> deleteAccount(String accountId) async {
     try {
-      final response = await _dio.delete('/accounts/$accountId');
+      final response = await _dio.delete('/api/accounts/$accountId');
       return response.statusCode == 200 || response.statusCode == 204;
     } catch (e) {
       print('Error deleting account: $e');
@@ -77,10 +116,10 @@ class ApiService {
     try {
       final transactionData = transaction.toJson();
       print('📤 TRANSACTION API CALL:');
-      print('  URL: POST /transactions');
+      print('  URL: POST /api/transactions');
       print('  Body: $transactionData');
       
-      final response = await _dio.post('/transactions', data: transactionData);
+      final response = await _dio.post('/api/transactions', data: transactionData);
       
       print('📥 TRANSACTION API RESPONSE:');
       print('  Status: ${response.statusCode}');
@@ -95,7 +134,7 @@ class ApiService {
 
   Future<bool> updateTransaction(transaction_model.Transaction transaction) async {
     try {
-      final response = await _dio.put('/transactions/${transaction.id}', data: transaction.toJson());
+      final response = await _dio.put('/api/transactions/${transaction.id}', data: transaction.toJson());
       return response.statusCode == 200;
     } catch (e) {
       print('Error updating transaction: $e');
@@ -105,7 +144,7 @@ class ApiService {
 
   Future<bool> deleteTransaction(String transactionId) async {
     try {
-      final response = await _dio.delete('/transactions/$transactionId');
+      final response = await _dio.delete('/api/transactions/$transactionId');
       return response.statusCode == 200 || response.statusCode == 204;
     } catch (e) {
       print('Error deleting transaction: $e');
@@ -118,10 +157,10 @@ class ApiService {
     try {
       final loanData = loan.toJson();
       print('📤 LOAN API CALL:');
-      print('  URL: POST /loans');
+      print('  URL: POST /api/loans');
       print('  Body: $loanData');
       
-      final response = await _dio.post('/loans', data: loanData);
+      final response = await _dio.post('/api/loans', data: loanData);
       
       print('📥 LOAN API RESPONSE:');
       print('  Status: ${response.statusCode}');
@@ -136,7 +175,7 @@ class ApiService {
 
   Future<bool> updateLoan(Loan loan) async {
     try {
-      final response = await _dio.put('/loans/${loan.id}', data: loan.toJson());
+      final response = await _dio.put('/api/loans/${loan.id}', data: loan.toJson());
       return response.statusCode == 200;
     } catch (e) {
       print('Error updating loan: $e');
@@ -146,7 +185,7 @@ class ApiService {
 
   Future<bool> deleteLoan(String loanId) async {
     try {
-      final response = await _dio.delete('/loans/$loanId');
+      final response = await _dio.delete('/api/loans/$loanId');
       return response.statusCode == 200 || response.statusCode == 204;
     } catch (e) {
       print('Error deleting loan: $e');
@@ -159,10 +198,10 @@ class ApiService {
     try {
       final liabilityData = liability.toJson();
       print('📤 LIABILITY API CALL:');
-      print('  URL: POST /liabilities');
+      print('  URL: POST /api/liabilities');
       print('  Body: $liabilityData');
       
-      final response = await _dio.post('/liabilities', data: liabilityData);
+      final response = await _dio.post('/api/liabilities', data: liabilityData);
       
       print('📥 LIABILITY API RESPONSE:');
       print('  Status: ${response.statusCode}');
@@ -177,7 +216,7 @@ class ApiService {
 
   Future<bool> updateLiability(Liability liability) async {
     try {
-      final response = await _dio.put('/liabilities/${liability.id}', data: liability.toJson());
+      final response = await _dio.put('/api/liabilities/${liability.id}', data: liability.toJson());
       return response.statusCode == 200;
     } catch (e) {
       print('Error updating liability: $e');
@@ -187,7 +226,7 @@ class ApiService {
 
   Future<bool> deleteLiability(String liabilityId) async {
     try {
-      final response = await _dio.delete('/liabilities/$liabilityId');
+      final response = await _dio.delete('/api/liabilities/$liabilityId');
       return response.statusCode == 200 || response.statusCode == 204;
     } catch (e) {
       print('Error deleting liability: $e');
