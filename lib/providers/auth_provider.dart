@@ -72,8 +72,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
             );
             print('✅ User authenticated successfully: ${user.name}');
             
-            // Download user data from server after successful auth check
-            await _downloadUserDataFromServer();
+            // Download user data from server in background
+            _downloadUserDataFromServer().catchError((error) {
+              print('❌ Background data download failed: $error');
+            });
           } else {
             print('❌ Incomplete user data, signing out');
             await _authService.signout();
@@ -169,8 +171,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
           
           print('✅ Authentication state updated: isAuthenticated = ${state.isAuthenticated}');
           
-          // Download user data from server after successful signin
-          await _downloadUserDataFromServer();
+          // Download user data from server in background (don't block navigation)
+          _downloadUserDataFromServer().catchError((error) {
+            print('❌ Background data download failed: $error');
+            // Don't change auth state on download failure - user can still use app
+          });
         } else {
           print('❌ User data is incomplete: $userData');
           state = state.copyWith(
