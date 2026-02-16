@@ -99,9 +99,9 @@
 - [ ] Sync status indicators
 
 ### 8. UI/UX Enhancements
-- [ ] Home screen widgets
-- [ ] Search across all data (accounts, transactions, loans)
-- [ ] Batch operations (multi-select delete/edit)
+- [x] Dashboard widgets (Recent Transactions, Savings Goals sections)
+- [x] Search across all data (accounts, transactions, loans, liabilities, savings goals)
+- [x] Batch operations (multi-select delete on transactions and accounts)
 - [ ] Onboarding flow for new users
 - [ ] Biometric lock (fingerprint/face)
 

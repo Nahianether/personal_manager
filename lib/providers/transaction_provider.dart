@@ -622,6 +622,67 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
       state = state.copyWith(error: e.toString());
     }
   }
+  Future<void> deleteMultipleTransactions(List<String> ids) async {
+    try {
+      final toDelete = state.transactions.where((t) => ids.contains(t.id)).toList();
+
+      await _databaseService.deleteMultipleTransactions(ids);
+
+      // Reverse balances for each deleted transaction
+      final accountNotifier = _ref.read(accountProvider.notifier);
+      final balanceAdjustments = <String, double>{};
+
+      for (final transaction in toDelete) {
+        final account = accountNotifier.getAccountById(transaction.accountId);
+        if (account == null) continue;
+
+        double adj = 0.0;
+        if (account.isCreditCard) {
+          switch (transaction.type) {
+            case TransactionType.income:
+              adj = transaction.amount;
+              break;
+            case TransactionType.expense:
+              adj = -transaction.amount;
+              break;
+            case TransactionType.transfer:
+              break;
+          }
+        } else {
+          switch (transaction.type) {
+            case TransactionType.income:
+              adj = -transaction.amount;
+              break;
+            case TransactionType.expense:
+              adj = transaction.amount;
+              break;
+            case TransactionType.transfer:
+              break;
+          }
+        }
+
+        balanceAdjustments[transaction.accountId] =
+            (balanceAdjustments[transaction.accountId] ?? 0) + adj;
+      }
+
+      for (final entry in balanceAdjustments.entries) {
+        final account = accountNotifier.getAccountById(entry.key);
+        if (account != null && entry.value != 0) {
+          await accountNotifier.updateAccountBalance(
+            entry.key,
+            account.balance + entry.value,
+          );
+        }
+      }
+
+      state = state.copyWith(
+        transactions: state.transactions.where((t) => !ids.contains(t.id)).toList(),
+        error: null,
+      );
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
 }
 
 final transactionProvider = StateNotifierProvider<TransactionNotifier, TransactionState>((ref) {

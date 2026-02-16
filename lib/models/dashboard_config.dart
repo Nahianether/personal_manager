@@ -5,7 +5,9 @@ enum DashboardSection {
   quickActions('Quick Actions'),
   budgetStatus('Budget Status'),
   incomeExpenseChart('Income vs Expenses'),
-  overviewCards('Overview');
+  overviewCards('Overview'),
+  recentTransactions('Recent Transactions'),
+  savingsGoals('Savings Goals');
 
   const DashboardSection(this.label);
   final String label;

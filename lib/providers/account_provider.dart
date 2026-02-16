@@ -179,6 +179,18 @@ class AccountNotifier extends StateNotifier<AccountState> {
   List<Account> getAccountsByType(AccountType type) {
     return state.accounts.where((account) => account.type == type).toList();
   }
+
+  Future<void> deleteMultipleAccounts(List<String> ids) async {
+    try {
+      await _databaseService.deleteMultipleAccounts(ids);
+      state = state.copyWith(
+        accounts: state.accounts.where((a) => !ids.contains(a.id)).toList(),
+        error: null,
+      );
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
 }
 
 final accountProvider = StateNotifierProvider<AccountNotifier, AccountState>((ref) {

@@ -639,12 +639,49 @@ class DatabaseService {
   Future<void> deleteTransaction(String id) async {
     final db = await database;
     final userId = await _getCurrentUserId();
-    
+
     await db.delete(
       'transactions',
       where: userId != null ? 'id = ? AND user_id = ?' : 'id = ?',
       whereArgs: userId != null ? [id, userId] : [id],
     );
+  }
+
+  Future<void> deleteMultipleTransactions(List<String> ids) async {
+    if (ids.isEmpty) return;
+    final db = await database;
+    final userId = await _getCurrentUserId();
+    final batch = db.batch();
+    for (final id in ids) {
+      batch.delete(
+        'transactions',
+        where: userId != null ? 'id = ? AND user_id = ?' : 'id = ?',
+        whereArgs: userId != null ? [id, userId] : [id],
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  Future<void> deleteMultipleAccounts(List<String> ids) async {
+    if (ids.isEmpty) return;
+    final db = await database;
+    final userId = await _getCurrentUserId();
+    final batch = db.batch();
+    for (final id in ids) {
+      // Delete associated transactions first
+      batch.delete(
+        'transactions',
+        where: userId != null ? 'account_id = ? AND user_id = ?' : 'account_id = ?',
+        whereArgs: userId != null ? [id, userId] : [id],
+      );
+      // Then delete the account
+      batch.delete(
+        'accounts',
+        where: userId != null ? 'id = ? AND user_id = ?' : 'id = ?',
+        whereArgs: userId != null ? [id, userId] : [id],
+      );
+    }
+    await batch.commit(noResult: true);
   }
 
   Future<void> insertTransaction(transaction_model.Transaction transaction) async {

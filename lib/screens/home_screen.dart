@@ -28,6 +28,7 @@ import 'transfer_screen.dart';
 import 'budget_screen.dart';
 import 'notifications_screen.dart';
 import 'dashboard_customization_screen.dart';
+import 'search_screen.dart';
 import '../models/dashboard_config.dart';
 import '../providers/dashboard_config_provider.dart';
 
@@ -48,6 +49,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       _loadData();
     });
   }
+
+  // ignore: invalid_use_of_protected_member
+  void _navigateToTab(int index) => setState(() => _selectedIndex = index);
 
   Future<void> _loadData() async {
     await Future.wait([
@@ -173,6 +177,14 @@ class DashboardTab extends ConsumerWidget {
               titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
             ),
             actions: [
+              IconButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SearchScreen()),
+                ),
+                icon: const Icon(Icons.search_rounded),
+                tooltip: 'Search',
+              ),
               IconButton(
                 onPressed: () => Navigator.push(
                   context,
@@ -417,6 +429,22 @@ class DashboardTab extends ConsumerWidget {
                     ),
                   ],
                 );
+              },
+            ),
+          );
+        case DashboardSection.recentTransactions:
+          widgets.add(
+            Consumer(
+              builder: (context, ref, child) {
+                return _buildRecentTransactionsSection(context, ref, currencyFormatter);
+              },
+            ),
+          );
+        case DashboardSection.savingsGoals:
+          widgets.add(
+            Consumer(
+              builder: (context, ref, child) {
+                return _buildSavingsGoalsSection(context, ref, currencyFormatter);
               },
             ),
           );
@@ -772,6 +800,213 @@ class DashboardTab extends ConsumerWidget {
                 ),
               );
             }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecentTransactionsSection(BuildContext context, WidgetRef ref, NumberFormat currencyFormatter) {
+    final transactionState = ref.watch(transactionProvider);
+    final transactions = transactionState.transactions;
+
+    if (transactions.isEmpty) return const SizedBox.shrink();
+
+    final recent = transactions.take(5).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Recent Transactions',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            TextButton(
+              onPressed: () {
+                final homeState = context.findAncestorStateOfType<_HomeScreenState>();
+                if (homeState != null && homeState.mounted) {
+                  homeState._navigateToTab(2);
+                }
+              },
+              child: const Text('View All'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainer,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Column(
+            children: recent.asMap().entries.map((entry) {
+              final transaction = entry.value;
+              final isLast = entry.key == recent.length - 1;
+              final isExpense = transaction.type == TransactionType.expense;
+              return Column(
+                children: [
+                  ListTile(
+                    dense: true,
+                    leading: CircleAvatar(
+                      radius: 16,
+                      backgroundColor: (isExpense ? Colors.red : Colors.green).withValues(alpha: 0.1),
+                      child: Icon(
+                        isExpense ? Icons.arrow_upward : Icons.arrow_downward,
+                        size: 16,
+                        color: isExpense ? Colors.red : Colors.green,
+                      ),
+                    ),
+                    title: Text(
+                      transaction.category ?? 'Transaction',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    subtitle: Text(
+                      transaction.description?.isNotEmpty == true
+                          ? transaction.description!
+                          : DateFormat('dd MMM').format(transaction.date),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    trailing: Text(
+                      '${isExpense ? '-' : '+'}${CurrencyUtils.formatCurrency(transaction.amount.abs(), transaction.currency)}',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: isExpense ? Colors.red : Colors.green,
+                          ),
+                    ),
+                  ),
+                  if (!isLast)
+                    Divider(
+                      height: 1,
+                      indent: 56,
+                      color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                    ),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSavingsGoalsSection(BuildContext context, WidgetRef ref, NumberFormat currencyFormatter) {
+    final goalState = ref.watch(savingsGoalProvider);
+    final activeGoals = goalState.activeGoals;
+
+    if (activeGoals.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Savings Goals',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            TextButton(
+              onPressed: () {
+                final homeState = context.findAncestorStateOfType<_HomeScreenState>();
+                if (homeState != null && homeState.mounted) {
+                  homeState._navigateToTab(4);
+                }
+              },
+              child: const Text('View All'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainer,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: activeGoals.take(3).map((goal) {
+                final daysLeft = goal.daysUntilTarget;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              goal.name,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Text(
+                            daysLeft >= 0 ? '$daysLeft days left' : '${daysLeft.abs()} days overdue',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: daysLeft >= 0
+                                      ? Theme.of(context).colorScheme.onSurfaceVariant
+                                      : Colors.red,
+                                ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: goal.progressPercentage,
+                                minHeight: 6,
+                                backgroundColor: Colors.teal.withValues(alpha: 0.15),
+                                valueColor: const AlwaysStoppedAnimation<Color>(Colors.teal),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${(goal.progressPercentage * 100).toStringAsFixed(0)}%',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Colors.teal,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${CurrencyUtils.formatCurrency(goal.currentAmount, goal.currency)} / ${CurrencyUtils.formatCurrency(goal.targetAmount, goal.currency)}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
           ),
         ),
       ],

@@ -16,6 +16,70 @@ class AccountsScreen extends ConsumerStatefulWidget {
 }
 
 class _AccountsScreenState extends ConsumerState<AccountsScreen> {
+  bool _isSelectionMode = false;
+  final Set<String> _selectedIds = {};
+
+  void _exitSelectionMode() {
+    setState(() {
+      _isSelectionMode = false;
+      _selectedIds.clear();
+    });
+  }
+
+  void _toggleSelection(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+        if (_selectedIds.isEmpty) _isSelectionMode = false;
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  void _toggleSelectAll() {
+    final allAccounts = ref.read(accountProvider).accounts;
+    setState(() {
+      if (_selectedIds.length == allAccounts.length) {
+        _selectedIds.clear();
+      } else {
+        _selectedIds.addAll(allAccounts.map((a) => a.id));
+      }
+    });
+  }
+
+  void _deleteSelectedAccounts() {
+    final count = _selectedIds.length;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Accounts'),
+        content: Text(
+          'Are you sure you want to delete $count account${count > 1 ? 's' : ''}?\n\nAll transactions associated with these accounts will also be deleted. This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              ref.read(accountProvider.notifier)
+                  .deleteMultipleAccounts(_selectedIds.toList());
+              Navigator.pop(context);
+              _exitSelectionMode();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('$count account${count > 1 ? 's' : ''} deleted')),
+              );
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final currencyState = ref.watch(currencyProvider);
@@ -23,16 +87,36 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      appBar: AppBar(
-        title: const Text('Accounts'),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            onPressed: () => _showAddAccountDialog(context),
-            icon: const Icon(Icons.add_rounded),
-          ),
-        ],
-      ),
+      appBar: _isSelectionMode
+          ? AppBar(
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: _exitSelectionMode,
+              ),
+              title: Text('${_selectedIds.length} selected'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.select_all),
+                  tooltip: 'Select All',
+                  onPressed: _toggleSelectAll,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_rounded),
+                  tooltip: 'Delete Selected',
+                  onPressed: _selectedIds.isNotEmpty ? _deleteSelectedAccounts : null,
+                ),
+              ],
+            )
+          : AppBar(
+              title: const Text('Accounts'),
+              centerTitle: true,
+              actions: [
+                IconButton(
+                  onPressed: () => _showAddAccountDialog(context),
+                  icon: const Icon(Icons.add_rounded),
+                ),
+              ],
+            ),
       body: Consumer(
         builder: (context, ref, child) {
           final accountState = ref.watch(accountProvider);
@@ -192,29 +276,39 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                   itemCount: accountState.accounts.length,
                   itemBuilder: (context, index) {
                     final account = accountState.accounts[index];
+                    final isSelected = _selectedIds.contains(account.id);
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainer,
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5)
+                            : Theme.of(context).colorScheme.surfaceContainer,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                          color: isSelected
+                              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)
+                              : Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
                         ),
                       ),
                       child: ListTile(
                         contentPadding: const EdgeInsets.all(16),
-                        leading: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: _getAccountColor(account.type).withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            _getAccountIcon(account.type),
-                            color: _getAccountColor(account.type),
-                            size: 24,
-                          ),
-                        ),
+                        leading: _isSelectionMode
+                            ? Checkbox(
+                                value: isSelected,
+                                onChanged: (_) => _toggleSelection(account.id),
+                              )
+                            : Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: _getAccountColor(account.type).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(
+                                  _getAccountIcon(account.type),
+                                  color: _getAccountColor(account.type),
+                                  size: 24,
+                                ),
+                              ),
                         title: Text(
                           account.name,
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -245,7 +339,21 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                           constraints: const BoxConstraints(maxHeight: 50),
                           child: _buildBalanceDisplay(context, account, displayCurrencyFormatter),
                         ),
-                        onTap: () => _showAccountDetails(context, account),
+                        onTap: () {
+                          if (_isSelectionMode) {
+                            _toggleSelection(account.id);
+                          } else {
+                            _showAccountDetails(context, account);
+                          }
+                        },
+                        onLongPress: () {
+                          if (!_isSelectionMode) {
+                            setState(() {
+                              _isSelectionMode = true;
+                              _selectedIds.add(account.id);
+                            });
+                          }
+                        },
                       ),
                     );
                   },
@@ -255,7 +363,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
           );
         },
       ),
-      floatingActionButton: _buildActionButton(context),
+      floatingActionButton: _isSelectionMode ? null : _buildActionButton(context),
     );
   }
 

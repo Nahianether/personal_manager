@@ -22,6 +22,10 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> with Ti
   final _searchController = TextEditingController();
   bool _isSearching = false;
 
+  // Selection state
+  bool _isSelectionMode = false;
+  final Set<String> _selectedIds = {};
+
   // Filter state
   String _searchQuery = '';
   DateTime? _filterDateFrom;
@@ -77,74 +81,102 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> with Ti
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: _isSearching
-            ? TextField(
-                controller: _searchController,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: 'Search transactions...',
-                  border: InputBorder.none,
-                ),
-                style: Theme.of(context).textTheme.titleMedium,
-              )
-            : const Text('Transactions'),
-        centerTitle: !_isSearching,
-        actions: [
-          IconButton(
-            icon: Icon(_isSearching ? Icons.close : Icons.search),
-            onPressed: () {
-              setState(() {
-                if (_isSearching) {
-                  _searchController.clear();
-                  _searchQuery = '';
-                }
-                _isSearching = !_isSearching;
-              });
-            },
-          ),
-          Stack(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.filter_list),
-                onPressed: () => _showFilterBottomSheet(context),
+      appBar: _isSelectionMode
+          ? AppBar(
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: _exitSelectionMode,
               ),
-              if (_activeFilterCount > 0)
-                Positioned(
-                  right: 4,
-                  top: 4,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
+              title: Text('${_selectedIds.length} selected'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.select_all),
+                  tooltip: 'Select All',
+                  onPressed: _toggleSelectAll,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_rounded),
+                  tooltip: 'Delete Selected',
+                  onPressed: _selectedIds.isNotEmpty ? _deleteSelectedTransactions : null,
+                ),
+              ],
+              bottom: TabBar(
+                controller: _tabController,
+                tabs: const [
+                  Tab(icon: Icon(Icons.list), text: 'All'),
+                  Tab(icon: Icon(Icons.arrow_downward), text: 'Income'),
+                  Tab(icon: Icon(Icons.arrow_upward), text: 'Expense'),
+                ],
+              ),
+            )
+          : AppBar(
+              title: _isSearching
+                  ? TextField(
+                      controller: _searchController,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        hintText: 'Search transactions...',
+                        border: InputBorder.none,
+                      ),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    )
+                  : const Text('Transactions'),
+              centerTitle: !_isSearching,
+              actions: [
+                IconButton(
+                  icon: Icon(_isSearching ? Icons.close : Icons.search),
+                  onPressed: () {
+                    setState(() {
+                      if (_isSearching) {
+                        _searchController.clear();
+                        _searchQuery = '';
+                      }
+                      _isSearching = !_isSearching;
+                    });
+                  },
+                ),
+                Stack(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.filter_list),
+                      onPressed: () => _showFilterBottomSheet(context),
                     ),
-                    child: Text(
-                      '$_activeFilterCount',
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                    ),
+                    if (_activeFilterCount > 0)
+                      Positioned(
+                        right: 4,
+                        top: 4,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            '$_activeFilterCount',
+                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                IconButton(
+                  icon: const Icon(Icons.repeat_rounded),
+                  tooltip: 'Recurring Transactions',
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const RecurringTransactionsScreen()),
                   ),
                 ),
-            ],
-          ),
-          IconButton(
-            icon: const Icon(Icons.repeat_rounded),
-            tooltip: 'Recurring Transactions',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const RecurringTransactionsScreen()),
+              ],
+              bottom: TabBar(
+                controller: _tabController,
+                tabs: const [
+                  Tab(icon: Icon(Icons.list), text: 'All'),
+                  Tab(icon: Icon(Icons.arrow_downward), text: 'Income'),
+                  Tab(icon: Icon(Icons.arrow_upward), text: 'Expense'),
+                ],
+              ),
             ),
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(icon: Icon(Icons.list), text: 'All'),
-            Tab(icon: Icon(Icons.arrow_downward), text: 'Income'),
-            Tab(icon: Icon(Icons.arrow_upward), text: 'Expense'),
-          ],
-        ),
-      ),
       body: Column(
         children: [
           // Active filter chips
@@ -162,7 +194,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> with Ti
           ),
         ],
       ),
-      floatingActionButton: _buildTabSpecificFAB(),
+      floatingActionButton: _isSelectionMode ? null : _buildTabSpecificFAB(),
     );
   }
 
@@ -392,16 +424,25 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> with Ti
                 itemCount: filteredTransactions.length,
                 itemBuilder: (context, index) {
                   final transaction = filteredTransactions[index];
+                  final isSelected = _selectedIds.contains(transaction.id);
                   return Card(
                     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5)
+                        : null,
                     child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: _getTransactionColor(transaction.type),
-                        child: Icon(
-                          _getTransactionIcon(transaction.type),
-                          color: Colors.white,
-                        ),
-                      ),
+                      leading: _isSelectionMode
+                          ? Checkbox(
+                              value: isSelected,
+                              onChanged: (_) => _toggleSelection(transaction.id),
+                            )
+                          : CircleAvatar(
+                              backgroundColor: _getTransactionColor(transaction.type),
+                              child: Icon(
+                                _getTransactionIcon(transaction.type),
+                                color: Colors.white,
+                              ),
+                            ),
                       title: Text(transaction.category ?? 'Transaction'),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -419,7 +460,9 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> with Ti
                         ),
                       ),
                       onTap: () {
-                        if (transaction.type != TransactionType.transfer) {
+                        if (_isSelectionMode) {
+                          _toggleSelection(transaction.id);
+                        } else if (transaction.type != TransactionType.transfer) {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -431,7 +474,14 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> with Ti
                           );
                         }
                       },
-                      onLongPress: () => _showDeleteTransactionDialog(context, transaction),
+                      onLongPress: () {
+                        if (!_isSelectionMode) {
+                          setState(() {
+                            _isSelectionMode = true;
+                            _selectedIds.add(transaction.id);
+                          });
+                        }
+                      },
                     ),
                   );
                 },
@@ -440,6 +490,67 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> with Ti
           ],
         );
       },
+    );
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _isSelectionMode = false;
+      _selectedIds.clear();
+    });
+  }
+
+  void _toggleSelection(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+        if (_selectedIds.isEmpty) _isSelectionMode = false;
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  void _toggleSelectAll() {
+    final allTransactions = ref.read(transactionProvider).transactions;
+    setState(() {
+      if (_selectedIds.length == allTransactions.length) {
+        _selectedIds.clear();
+      } else {
+        _selectedIds.addAll(allTransactions.map((t) => t.id));
+      }
+    });
+  }
+
+  void _deleteSelectedTransactions() {
+    final count = _selectedIds.length;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Transactions'),
+        content: Text(
+          'Are you sure you want to delete $count transaction${count > 1 ? 's' : ''}?\n\nThis will adjust account balances accordingly. This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              ref.read(transactionProvider.notifier)
+                  .deleteMultipleTransactions(_selectedIds.toList());
+              Navigator.pop(context);
+              _exitSelectionMode();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('$count transaction${count > 1 ? 's' : ''} deleted')),
+              );
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -718,31 +829,6 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> with Ti
     }
   }
 
-  void _showDeleteTransactionDialog(BuildContext context, Transaction transaction) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Transaction'),
-        content: const Text('Are you sure you want to delete this transaction?\n\nThis will adjust the account balance accordingly. This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              ref.read(transactionProvider.notifier).deleteTransaction(transaction.id);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Transaction deleted successfully')),
-              );
-            },
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _TransactionEntryScreen extends ConsumerStatefulWidget {

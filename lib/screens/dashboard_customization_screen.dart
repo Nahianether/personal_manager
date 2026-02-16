@@ -146,6 +146,10 @@ class _DashboardCustomizationScreenState
         return Icons.bar_chart_rounded;
       case DashboardSection.overviewCards:
         return Icons.dashboard_rounded;
+      case DashboardSection.recentTransactions:
+        return Icons.receipt_long_rounded;
+      case DashboardSection.savingsGoals:
+        return Icons.savings_rounded;
     }
   }
 
