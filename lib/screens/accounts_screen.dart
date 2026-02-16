@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../providers/account_provider.dart';
 import '../models/account.dart';
 import 'transfer_screen.dart';
+import 'transfer_history_screen.dart';
 
 class AccountsScreen extends ConsumerStatefulWidget {
   const AccountsScreen({super.key});
@@ -465,7 +466,27 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
             _buildDetailRow(context, 'Currency', account.currency),
             _buildDetailRow(context, 'Created', DateFormat('dd MMM yyyy').format(account.createdAt)),
             _buildDetailRow(context, 'Last Updated', DateFormat('dd MMM yyyy, HH:mm').format(account.updatedAt)),
-            const SizedBox(height: 32),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => TransferHistoryScreen(
+                        accountId: account.id,
+                        accountName: account.name,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.swap_horiz_rounded),
+                label: const Text('Transfer History'),
+              ),
+            ),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(

@@ -330,9 +330,78 @@ class SyncService {
     await syncPendingData();
   }
 
+  /// Downloads all user data from server and merges into local database.
+  /// Respects local pending changes (won't overwrite them).
+  /// Order: accounts → transactions → loans → liabilities, then push pending.
+  Future<void> downloadAllServerData() async {
+    print('📥 Downloading all server data...');
+
+    try {
+      final serverReachable = await _apiService.isServerReachable();
+      if (!serverReachable) {
+        print('❌ Server not reachable for data download');
+        return;
+      }
+
+      final userId = await _getCurrentUserId();
+      if (userId == null || userId.isEmpty) {
+        print('❌ No user ID available for data download');
+        return;
+      }
+
+      // 1. Fetch and upsert accounts first (transactions depend on them)
+      final accounts = await _apiService.fetchAccounts();
+      print('📊 Processing ${accounts.length} accounts from server...');
+      for (final account in accounts) {
+        try {
+          await _databaseService.upsertAccountFromServer(account, userId);
+        } catch (e) {
+          print('⚠️ Error upserting account ${account['id']}: $e');
+        }
+      }
+
+      // 2. Fetch and upsert transactions (requires accounts to exist)
+      final transactions = await _apiService.fetchTransactions();
+      print('💰 Processing ${transactions.length} transactions from server...');
+      for (final transaction in transactions) {
+        try {
+          await _databaseService.upsertTransactionFromServer(transaction, userId);
+        } catch (e) {
+          print('⚠️ Error upserting transaction ${transaction['id']}: $e');
+        }
+      }
+
+      // 3. Fetch and upsert loans
+      final loans = await _apiService.fetchLoans();
+      print('💸 Processing ${loans.length} loans from server...');
+      for (final loan in loans) {
+        try {
+          await _databaseService.upsertLoanFromServer(loan, userId);
+        } catch (e) {
+          print('⚠️ Error upserting loan ${loan['id']}: $e');
+        }
+      }
+
+      // 4. Fetch and upsert liabilities
+      final liabilities = await _apiService.fetchLiabilities();
+      print('📋 Processing ${liabilities.length} liabilities from server...');
+      for (final liability in liabilities) {
+        try {
+          await _databaseService.upsertLiabilityFromServer(liability, userId);
+        } catch (e) {
+          print('⚠️ Error upserting liability ${liability['id']}: $e');
+        }
+      }
+
+      print('✅ Server data download completed: ${accounts.length} accounts, ${transactions.length} transactions, ${loans.length} loans, ${liabilities.length} liabilities');
+    } catch (e) {
+      print('❌ Error downloading server data: $e');
+    }
+  }
+
   Future<void> _performInitialSync() async {
     print('🔄 Performing initial sync from server...');
-    
+
     try {
       final serverReachable = await _apiService.isServerReachable();
       if (!serverReachable) {
@@ -340,11 +409,12 @@ class SyncService {
         return;
       }
 
-      // TODO: Implement server-to-local sync
-      // This would fetch data from server and merge with local data
-      // For now, we'll just sync pending local data to server
+      // First pull data from server into local database
+      await downloadAllServerData();
+
+      // Then push any pending local changes to server
       await syncPendingData();
-      
+
       print('✅ Initial sync completed');
     } catch (e) {
       print('❌ Initial sync failed: $e');

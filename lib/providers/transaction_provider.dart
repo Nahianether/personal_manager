@@ -279,6 +279,174 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
     }
   }
 
+  Future<void> editTransaction({
+    required String transactionId,
+    required String accountId,
+    required TransactionType type,
+    required double amount,
+    String currency = 'BDT',
+    String? category,
+    String? description,
+    required DateTime date,
+  }) async {
+    try {
+      final oldTransaction = state.transactions.firstWhere((t) => t.id == transactionId);
+      final accountNotifier = _ref.read(accountProvider.notifier);
+
+      // 1. Reverse the old transaction's balance effect
+      final oldAccount = accountNotifier.getAccountById(oldTransaction.accountId);
+      if (oldAccount != null) {
+        double reversal = 0.0;
+        if (oldAccount.isCreditCard) {
+          switch (oldTransaction.type) {
+            case TransactionType.income:
+              reversal = oldTransaction.amount;
+              break;
+            case TransactionType.expense:
+              reversal = -oldTransaction.amount;
+              break;
+            case TransactionType.transfer:
+              break;
+          }
+        } else {
+          switch (oldTransaction.type) {
+            case TransactionType.income:
+              reversal = -oldTransaction.amount;
+              break;
+            case TransactionType.expense:
+              reversal = oldTransaction.amount;
+              break;
+            case TransactionType.transfer:
+              break;
+          }
+        }
+        if (reversal != 0) {
+          await accountNotifier.updateAccountBalance(
+            oldTransaction.accountId,
+            oldAccount.balance + reversal,
+          );
+        }
+      }
+
+      // 2. Build the updated transaction
+      final updatedTransaction = Transaction(
+        id: transactionId,
+        accountId: accountId,
+        type: type,
+        amount: amount,
+        currency: currency,
+        category: category,
+        description: description,
+        date: date,
+        createdAt: oldTransaction.createdAt,
+      );
+
+      // 3. Persist to database
+      await _databaseService.updateTransaction(updatedTransaction);
+
+      // 4. Apply the new transaction's balance effect
+      // Re-read the account in case it changed (e.g. same account, balance just reversed)
+      final newAccount = accountNotifier.getAccountById(accountId);
+      if (newAccount != null) {
+        double effect = 0.0;
+        if (newAccount.isCreditCard) {
+          switch (type) {
+            case TransactionType.income:
+              effect = -amount;
+              break;
+            case TransactionType.expense:
+              effect = amount;
+              break;
+            case TransactionType.transfer:
+              break;
+          }
+        } else {
+          switch (type) {
+            case TransactionType.income:
+              effect = amount;
+              break;
+            case TransactionType.expense:
+              effect = -amount;
+              break;
+            case TransactionType.transfer:
+              break;
+          }
+        }
+        if (effect != 0) {
+          await accountNotifier.updateAccountBalance(
+            accountId,
+            newAccount.balance + effect,
+          );
+        }
+      }
+
+      // 5. Update state
+      state = state.copyWith(
+        transactions: state.transactions
+            .map((t) => t.id == transactionId ? updatedTransaction : t)
+            .toList(),
+        error: null,
+      );
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  /// Combined search + filter. All parameters are optional and ANDed together.
+  List<Transaction> searchAndFilter({
+    String? query,
+    DateTime? dateFrom,
+    DateTime? dateTo,
+    String? category,
+    double? amountMin,
+    double? amountMax,
+    String? accountId,
+    TransactionType? type,
+  }) {
+    var results = state.transactions.toList();
+
+    if (type != null) {
+      results = results.where((t) => t.type == type).toList();
+    }
+
+    if (query != null && query.isNotEmpty) {
+      final q = query.toLowerCase();
+      results = results.where((t) {
+        final desc = t.description?.toLowerCase() ?? '';
+        final cat = t.category?.toLowerCase() ?? '';
+        return desc.contains(q) || cat.contains(q);
+      }).toList();
+    }
+
+    if (dateFrom != null) {
+      final start = DateTime(dateFrom.year, dateFrom.month, dateFrom.day);
+      results = results.where((t) => !t.date.isBefore(start)).toList();
+    }
+
+    if (dateTo != null) {
+      final end = DateTime(dateTo.year, dateTo.month, dateTo.day, 23, 59, 59);
+      results = results.where((t) => !t.date.isAfter(end)).toList();
+    }
+
+    if (category != null && category.isNotEmpty) {
+      results = results.where((t) => t.category == category).toList();
+    }
+
+    if (amountMin != null) {
+      results = results.where((t) => t.amount.abs() >= amountMin).toList();
+    }
+
+    if (amountMax != null) {
+      results = results.where((t) => t.amount.abs() <= amountMax).toList();
+    }
+
+    if (accountId != null && accountId.isNotEmpty) {
+      results = results.where((t) => t.accountId == accountId).toList();
+    }
+
+    return results;
+  }
+
   List<Transaction> getTransactionsByDateRange(DateTime start, DateTime end) {
     return state.transactions
         .where((t) => t.date.isAfter(start) && t.date.isBefore(end))

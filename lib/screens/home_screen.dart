@@ -7,6 +7,9 @@ import '../providers/loan_provider.dart';
 import '../providers/liability_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/transaction_provider.dart';
+import '../providers/budget_provider.dart';
+import '../providers/recurring_transaction_provider.dart';
+import '../providers/notification_provider.dart';
 import '../models/transaction.dart';
 import '../models/category.dart';
 import '../widgets/category_selector.dart';
@@ -18,6 +21,11 @@ import 'debts_screen.dart';
 import 'settings_screen.dart';
 import 'reports_screen.dart';
 import 'transfer_screen.dart';
+import 'budget_screen.dart';
+import 'notifications_screen.dart';
+import 'dashboard_customization_screen.dart';
+import '../models/dashboard_config.dart';
+import '../providers/dashboard_config_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -44,7 +52,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ref.read(liabilityProvider.notifier).loadLiabilities(),
       ref.read(categoryProvider.notifier).loadCategories(),
       ref.read(transactionProvider.notifier).loadAllTransactions(),
+      ref.read(budgetProvider.notifier).loadBudgets(),
+      ref.read(recurringTransactionProvider.notifier).loadRecurringTransactions(),
     ]);
+
+    // Generate any due recurring transactions after all data is loaded
+    await ref.read(recurringTransactionProvider.notifier).generateDueTransactions();
+
+    // Generate notifications from live data
+    final liabilities = ref.read(liabilityProvider).liabilities;
+    final loans = ref.read(loanProvider).loans;
+    final transactions = ref.read(transactionProvider).transactions;
+    final budgetStatuses =
+        ref.read(budgetProvider.notifier).getBudgetStatuses(transactions);
+    ref.read(notificationProvider.notifier).generateNotifications(
+          liabilities: liabilities,
+          budgetStatuses: budgetStatuses,
+          loans: loans,
+        );
   }
 
   @override
@@ -139,6 +164,63 @@ class DashboardTab extends ConsumerWidget {
               titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
             ),
             actions: [
+              IconButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const DashboardCustomizationScreen()),
+                ),
+                icon: const Icon(Icons.tune_rounded),
+                tooltip: 'Customize Dashboard',
+              ),
+              Consumer(
+                builder: (context, ref, child) {
+                  final notifState = ref.watch(notificationProvider);
+                  return Stack(
+                    children: [
+                      IconButton(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const NotificationsScreen()),
+                        ),
+                        icon: Icon(
+                          notifState.count > 0
+                              ? Icons.notifications_active_rounded
+                              : Icons.notifications_none_rounded,
+                        ),
+                      ),
+                      if (notifState.count > 0)
+                        Positioned(
+                          right: 6,
+                          top: 6,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: notifState.criticalCount > 0
+                                  ? Colors.red
+                                  : Colors.orange,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 16,
+                              minHeight: 16,
+                            ),
+                            child: Text(
+                              '${notifState.count}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
               Consumer(
                 builder: (context, ref, child) {
                   final syncState = ref.watch(syncProvider);
@@ -193,64 +275,145 @@ class DashboardTab extends ConsumerWidget {
           ),
           SliverPadding(
             padding: const EdgeInsets.all(16),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                Consumer(
-                  builder: (context, ref, child) {
-                    final accountState = ref.watch(accountProvider);
-                    return _buildBalanceCard(context, accountState.totalBalance, currencyFormatter);
-                  },
-                ),
-                const SizedBox(height: 20),
-                _buildQuickActionsGrid(context),
-                const SizedBox(height: 20),
-                Consumer(
-                  builder: (context, ref, child) {
-                    return _buildIncomeExpenseChart(context, ref, currencyFormatter);
-                  },
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Overview',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+            sliver: Consumer(
+              builder: (context, ref, child) {
+                final dashboardState = ref.watch(dashboardConfigProvider);
+                final visibleSections = dashboardState.config.visibleSections;
+                return SliverList(
+                  delegate: SliverChildListDelegate(
+                    _buildSectionWidgets(context, ref, currencyFormatter, visibleSections),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Consumer(
-                  builder: (context, ref, child) {
-                    final loanState = ref.watch(loanProvider);
-                    final liabilityState = ref.watch(liabilityProvider);
-                    
-                    return Column(
-                      children: [
-                        _buildOverviewCard(
-                          context,
-                          'Active Loans',
-                          currencyFormatter.format(loanState.totalLoanAmount),
-                          '${loanState.loans.where((l) => !l.isReturned).length} loans',
-                          Icons.trending_up_rounded,
-                          Colors.orange,
-                        ),
-                        const SizedBox(height: 12),
-                        _buildOverviewCard(
-                          context,
-                          'Pending Liabilities',
-                          currencyFormatter.format(liabilityState.totalLiabilityAmount),
-                          '${liabilityState.overdueItems.length} overdue',
-                          Icons.assignment_rounded,
-                          Colors.red,
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ]),
+                );
+              },
             ),
           ),
         ],
       ),
     );
+  }
+
+  List<Widget> _buildSectionWidgets(
+    BuildContext context,
+    WidgetRef ref,
+    NumberFormat currencyFormatter,
+    List<DashboardSection> visibleSections,
+  ) {
+    if (visibleSections.isEmpty) {
+      return [
+        SizedBox(
+          height: 300,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.dashboard_customize_rounded,
+                  size: 48,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'No sections visible',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Tap the customize button to add sections',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ];
+    }
+
+    final List<Widget> widgets = [];
+
+    for (final section in visibleSections) {
+      if (widgets.isNotEmpty) {
+        widgets.add(const SizedBox(height: 20));
+      }
+
+      switch (section) {
+        case DashboardSection.totalBalance:
+          widgets.add(
+            Consumer(
+              builder: (context, ref, child) {
+                final accountState = ref.watch(accountProvider);
+                return _buildBalanceCard(
+                    context, accountState.totalBalance, currencyFormatter);
+              },
+            ),
+          );
+        case DashboardSection.quickActions:
+          widgets.add(_buildQuickActionsGrid(context));
+        case DashboardSection.budgetStatus:
+          widgets.add(
+            Consumer(
+              builder: (context, ref, child) {
+                return _buildBudgetStatusSection(
+                    context, ref, currencyFormatter);
+              },
+            ),
+          );
+        case DashboardSection.incomeExpenseChart:
+          widgets.add(
+            Consumer(
+              builder: (context, ref, child) {
+                return _buildIncomeExpenseChart(
+                    context, ref, currencyFormatter);
+              },
+            ),
+          );
+        case DashboardSection.overviewCards:
+          widgets.add(
+            Text(
+              'Overview',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+          );
+          widgets.add(const SizedBox(height: 12));
+          widgets.add(
+            Consumer(
+              builder: (context, ref, child) {
+                final loanState = ref.watch(loanProvider);
+                final liabilityState = ref.watch(liabilityProvider);
+                return Column(
+                  children: [
+                    _buildOverviewCard(
+                      context,
+                      'Active Loans',
+                      currencyFormatter.format(loanState.totalLoanAmount),
+                      '${loanState.loans.where((l) => !l.isReturned).length} loans',
+                      Icons.trending_up_rounded,
+                      Colors.orange,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildOverviewCard(
+                      context,
+                      'Pending Liabilities',
+                      currencyFormatter
+                          .format(liabilityState.totalLiabilityAmount),
+                      '${liabilityState.overdueItems.length} overdue',
+                      Icons.assignment_rounded,
+                      Colors.red,
+                    ),
+                  ],
+                );
+              },
+            ),
+          );
+      }
+    }
+
+    return widgets;
   }
 
   Widget _buildBalanceCard(BuildContext context, double balance, NumberFormat formatter) {
@@ -500,6 +663,117 @@ class DashboardTab extends ConsumerWidget {
     );
   }
 
+
+  Widget _buildBudgetStatusSection(BuildContext context, WidgetRef ref, NumberFormat currencyFormatter) {
+    final budgetState = ref.watch(budgetProvider);
+    final transactionState = ref.watch(transactionProvider);
+
+    if (budgetState.budgets.isEmpty) return const SizedBox.shrink();
+
+    final statuses = ref.read(budgetProvider.notifier).getBudgetStatuses(transactionState.transactions);
+    statuses.sort((a, b) => b.percentage.compareTo(a.percentage));
+    final topStatuses = statuses.take(3).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Budget Status',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BudgetScreen()),
+              ),
+              child: const Text('View All'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainer,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Column(
+            children: topStatuses.map((status) {
+              final color = _getBudgetProgressColor(status.percentage);
+              final clampedProgress = (status.percentage / 100).clamp(0.0, 1.0);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            status.budget.category,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          '${currencyFormatter.format(status.spent)} / ${currencyFormatter.format(status.budget.amount)}',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: clampedProgress,
+                              minHeight: 6,
+                              backgroundColor: color.withValues(alpha: 0.15),
+                              valueColor: AlwaysStoppedAnimation<Color>(color),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${status.percentage.toStringAsFixed(0)}%',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: color,
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Color _getBudgetProgressColor(double percentage) {
+    if (percentage > 100) return Colors.red;
+    if (percentage >= 80) return Colors.orange;
+    if (percentage >= 60) return Colors.amber.shade700;
+    return Colors.green;
+  }
 
   Widget _buildIncomeExpenseChart(BuildContext context, WidgetRef ref, NumberFormat currencyFormatter) {
     final transactionState = ref.watch(transactionProvider);

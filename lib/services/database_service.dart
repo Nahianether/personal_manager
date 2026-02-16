@@ -5,6 +5,8 @@ import '../models/transaction.dart' as transaction_model;
 import '../models/loan.dart';
 import '../models/liability.dart';
 import '../models/category.dart';
+import '../models/budget.dart';
+import '../models/recurring_transaction.dart';
 import 'sync_service.dart';
 import 'connectivity_service.dart';
 import 'auth_service.dart';
@@ -66,16 +68,16 @@ class DatabaseService {
     try {
       final db = await openDatabase(
         path,
-        version: 8,
+        version: 10,
         onCreate: _createTables,
         onUpgrade: _upgradeDatabase,
       );
-      
+
       // Test database write permissions
       await _testDatabaseWritePermissions(db);
-      
+
       // Reset to current version
-      await db.execute('PRAGMA user_version = 8');
+      await db.execute('PRAGMA user_version = 10');
       
       return db;
     } catch (e) {
@@ -97,7 +99,7 @@ class DatabaseService {
           // Create a fresh database
           final db = await openDatabase(
             path,
-            version: 8,
+            version: 10,
             onCreate: _createTables,
             onUpgrade: _upgradeDatabase,
           );
@@ -121,7 +123,7 @@ class DatabaseService {
     try {
       // Simple write test - just try to run a pragma command that writes to the database
       await db.execute('PRAGMA user_version = 1');
-      await db.execute('PRAGMA user_version = 7'); // Reset to current version
+      await db.execute('PRAGMA user_version = 10'); // Reset to current version
       print('Database write permissions OK');
     } catch (e) {
       print('Database write permission test failed: $e');
@@ -227,6 +229,42 @@ class DatabaseService {
 
     await db.execute('''
       CREATE INDEX idx_categories_type ON categories(type)
+    ''');
+
+    await db.execute('''
+      CREATE TABLE budgets (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        category TEXT NOT NULL,
+        amount REAL NOT NULL,
+        period TEXT NOT NULL DEFAULT 'monthly',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        sync_status TEXT NOT NULL DEFAULT 'pending',
+        last_synced_at TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE recurring_transactions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        amount REAL NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'BDT',
+        category TEXT,
+        description TEXT,
+        frequency TEXT NOT NULL DEFAULT 'monthly',
+        start_date TEXT NOT NULL,
+        end_date TEXT,
+        next_due_date TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        sync_status TEXT NOT NULL DEFAULT 'pending',
+        last_synced_at TEXT
+      )
     ''');
 
     // Insert default categories
@@ -336,7 +374,7 @@ class DatabaseService {
       await db.execute('ALTER TABLE transactions ADD COLUMN user_id TEXT NOT NULL DEFAULT ""');
       await db.execute('ALTER TABLE loans ADD COLUMN user_id TEXT NOT NULL DEFAULT ""');
       await db.execute('ALTER TABLE liabilities ADD COLUMN user_id TEXT NOT NULL DEFAULT ""');
-      
+
       // For existing data, we'll need to assign the current user ID
       final currentUserId = await AuthService().getUserId();
       if (currentUserId != null) {
@@ -345,6 +383,46 @@ class DatabaseService {
         await db.execute('UPDATE loans SET user_id = ? WHERE user_id = ""', [currentUserId]);
         await db.execute('UPDATE liabilities SET user_id = ? WHERE user_id = ""', [currentUserId]);
       }
+    }
+
+    if (oldVersion < 9) {
+      await db.execute('''
+        CREATE TABLE budgets (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          category TEXT NOT NULL,
+          amount REAL NOT NULL,
+          period TEXT NOT NULL DEFAULT 'monthly',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          sync_status TEXT NOT NULL DEFAULT 'pending',
+          last_synced_at TEXT
+        )
+      ''');
+    }
+
+    if (oldVersion < 10) {
+      await db.execute('''
+        CREATE TABLE recurring_transactions (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          account_id TEXT NOT NULL,
+          type TEXT NOT NULL,
+          amount REAL NOT NULL,
+          currency TEXT NOT NULL DEFAULT 'BDT',
+          category TEXT,
+          description TEXT,
+          frequency TEXT NOT NULL DEFAULT 'monthly',
+          start_date TEXT NOT NULL,
+          end_date TEXT,
+          next_due_date TEXT NOT NULL,
+          is_active INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          sync_status TEXT NOT NULL DEFAULT 'pending',
+          last_synced_at TEXT
+        )
+      ''');
     }
   }
 
@@ -559,6 +637,29 @@ class DatabaseService {
       print('Transaction data: ${transaction.toJson()}');
       rethrow;
     }
+  }
+
+  Future<void> updateTransaction(transaction_model.Transaction transaction) async {
+    final db = await database;
+    final userId = await _getCurrentUserId();
+
+    await db.update(
+      'transactions',
+      {
+        'account_id': transaction.accountId,
+        'type': transaction.type.toString().split('.').last,
+        'amount': transaction.amount,
+        'currency': transaction.currency,
+        'category': transaction.category,
+        'description': transaction.description,
+        'date': transaction.date.toIso8601String(),
+        'sync_status': 'pending',
+      },
+      where: userId != null ? 'id = ? AND user_id = ?' : 'id = ?',
+      whereArgs: userId != null ? [transaction.id, userId] : [transaction.id],
+    );
+
+    _triggerImmediateSync('transactions', transaction.id);
   }
 
   Future<void> updateAccountBalance(String accountId, double newBalance) async {
@@ -822,22 +923,375 @@ class DatabaseService {
     });
   }
 
+  // ─── Budget operations ──────
+
+  Future<List<Budget>> getAllBudgets() async {
+    final db = await database;
+    final userId = await _getCurrentUserId();
+
+    final List<Map<String, dynamic>> maps = await db.query(
+      'budgets',
+      where: userId != null ? 'user_id = ?' : null,
+      whereArgs: userId != null ? [userId] : null,
+      orderBy: 'category ASC',
+    );
+
+    return List.generate(maps.length, (i) {
+      return Budget.fromJson({
+        'id': maps[i]['id'],
+        'category': maps[i]['category'],
+        'amount': maps[i]['amount'],
+        'period': maps[i]['period'],
+        'createdAt': maps[i]['created_at'],
+        'updatedAt': maps[i]['updated_at'],
+      });
+    });
+  }
+
+  Future<void> insertBudget(Budget budget) async {
+    final db = await database;
+    final userId = await _getCurrentUserId();
+
+    await db.insert(
+      'budgets',
+      {
+        'id': budget.id,
+        'user_id': userId ?? '',
+        'category': budget.category,
+        'amount': budget.amount,
+        'period': budget.period.toString().split('.').last,
+        'created_at': budget.createdAt.toIso8601String(),
+        'updated_at': budget.updatedAt.toIso8601String(),
+        'sync_status': 'pending',
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+
+    _triggerImmediateSync('budgets', budget.id);
+  }
+
+  Future<void> updateBudget(Budget budget) async {
+    final db = await database;
+    final userId = await _getCurrentUserId();
+
+    await db.update(
+      'budgets',
+      {
+        'category': budget.category,
+        'amount': budget.amount,
+        'period': budget.period.toString().split('.').last,
+        'updated_at': budget.updatedAt.toIso8601String(),
+        'sync_status': 'pending',
+      },
+      where: userId != null ? 'id = ? AND user_id = ?' : 'id = ?',
+      whereArgs: userId != null ? [budget.id, userId] : [budget.id],
+    );
+
+    _triggerImmediateSync('budgets', budget.id);
+  }
+
+  Future<void> deleteBudget(String id) async {
+    final db = await database;
+    final userId = await _getCurrentUserId();
+
+    await db.delete(
+      'budgets',
+      where: userId != null ? 'id = ? AND user_id = ?' : 'id = ?',
+      whereArgs: userId != null ? [id, userId] : [id],
+    );
+  }
+
+  // ─── Recurring Transaction operations ──────
+
+  Future<List<RecurringTransaction>> getAllRecurringTransactions() async {
+    final db = await database;
+    final userId = await _getCurrentUserId();
+
+    final List<Map<String, dynamic>> maps = await db.query(
+      'recurring_transactions',
+      where: userId != null ? 'user_id = ?' : null,
+      whereArgs: userId != null ? [userId] : null,
+      orderBy: 'next_due_date ASC',
+    );
+
+    return List.generate(maps.length, (i) {
+      return RecurringTransaction.fromJson({
+        'id': maps[i]['id'],
+        'accountId': maps[i]['account_id'],
+        'type': maps[i]['type'],
+        'amount': maps[i]['amount'],
+        'currency': maps[i]['currency'],
+        'category': maps[i]['category'],
+        'description': maps[i]['description'],
+        'frequency': maps[i]['frequency'],
+        'startDate': maps[i]['start_date'],
+        'endDate': maps[i]['end_date'],
+        'nextDueDate': maps[i]['next_due_date'],
+        'isActive': maps[i]['is_active'] == 1,
+        'createdAt': maps[i]['created_at'],
+        'updatedAt': maps[i]['updated_at'],
+      });
+    });
+  }
+
+  Future<void> insertRecurringTransaction(RecurringTransaction rt) async {
+    final db = await database;
+    final userId = await _getCurrentUserId();
+
+    await db.insert(
+      'recurring_transactions',
+      {
+        'id': rt.id,
+        'user_id': userId ?? '',
+        'account_id': rt.accountId,
+        'type': rt.type.toString().split('.').last,
+        'amount': rt.amount,
+        'currency': rt.currency,
+        'category': rt.category,
+        'description': rt.description,
+        'frequency': rt.frequency.toString().split('.').last,
+        'start_date': rt.startDate.toIso8601String(),
+        'end_date': rt.endDate?.toIso8601String(),
+        'next_due_date': rt.nextDueDate.toIso8601String(),
+        'is_active': rt.isActive ? 1 : 0,
+        'created_at': rt.createdAt.toIso8601String(),
+        'updated_at': rt.updatedAt.toIso8601String(),
+        'sync_status': 'pending',
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+
+    _triggerImmediateSync('recurring_transactions', rt.id);
+  }
+
+  Future<void> updateRecurringTransaction(RecurringTransaction rt) async {
+    final db = await database;
+    final userId = await _getCurrentUserId();
+
+    await db.update(
+      'recurring_transactions',
+      {
+        'account_id': rt.accountId,
+        'type': rt.type.toString().split('.').last,
+        'amount': rt.amount,
+        'currency': rt.currency,
+        'category': rt.category,
+        'description': rt.description,
+        'frequency': rt.frequency.toString().split('.').last,
+        'start_date': rt.startDate.toIso8601String(),
+        'end_date': rt.endDate?.toIso8601String(),
+        'next_due_date': rt.nextDueDate.toIso8601String(),
+        'is_active': rt.isActive ? 1 : 0,
+        'updated_at': rt.updatedAt.toIso8601String(),
+        'sync_status': 'pending',
+      },
+      where: userId != null ? 'id = ? AND user_id = ?' : 'id = ?',
+      whereArgs: userId != null ? [rt.id, userId] : [rt.id],
+    );
+
+    _triggerImmediateSync('recurring_transactions', rt.id);
+  }
+
+  Future<void> deleteRecurringTransaction(String id) async {
+    final db = await database;
+    final userId = await _getCurrentUserId();
+
+    await db.delete(
+      'recurring_transactions',
+      where: userId != null ? 'id = ? AND user_id = ?' : 'id = ?',
+      whereArgs: userId != null ? [id, userId] : [id],
+    );
+  }
+
+  // ─── Server-to-Local: Upsert methods (sync_status='synced') ──────
+
+  /// Upsert account from server. Skips if local item has pending changes.
+  Future<void> upsertAccountFromServer(Map<String, dynamic> data, String userId) async {
+    final db = await database;
+    final id = data['id']?.toString();
+    if (id == null) return;
+
+    // Check if local item has pending changes
+    final existing = await db.query(
+      'accounts',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    if (existing.isNotEmpty && existing.first['sync_status'] == 'pending') {
+      print('⏭️ Skipping account $id - has pending local changes');
+      return;
+    }
+
+    final now = DateTime.now().toIso8601String();
+    await db.insert(
+      'accounts',
+      {
+        'id': id,
+        'user_id': userId,
+        'name': data['name'],
+        'type': data['type']?.toString().split('.').last ?? 'wallet',
+        'balance': (data['balance'] ?? 0).toDouble(),
+        'currency': data['currency'] ?? 'BDT',
+        'credit_limit': data['creditLimit']?.toDouble(),
+        'created_at': data['createdAt'] ?? now,
+        'updated_at': data['updatedAt'] ?? now,
+        'sync_status': 'synced',
+        'last_synced_at': now,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Upsert transaction from server. Skips if local item has pending changes.
+  Future<void> upsertTransactionFromServer(Map<String, dynamic> data, String userId) async {
+    final db = await database;
+    final id = data['id']?.toString();
+    if (id == null) return;
+
+    final existing = await db.query(
+      'transactions',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    if (existing.isNotEmpty && existing.first['sync_status'] == 'pending') {
+      print('⏭️ Skipping transaction $id - has pending local changes');
+      return;
+    }
+
+    final now = DateTime.now().toIso8601String();
+    await db.insert(
+      'transactions',
+      {
+        'id': id,
+        'user_id': userId,
+        'account_id': data['accountId']?.toString() ?? '',
+        'type': data['type']?.toString().split('.').last ?? 'expense',
+        'amount': (data['amount'] ?? 0).toDouble(),
+        'currency': data['currency'] ?? 'BDT',
+        'category': data['category'],
+        'description': data['description'],
+        'date': data['date'] ?? now,
+        'created_at': data['createdAt'] ?? now,
+        'sync_status': 'synced',
+        'last_synced_at': now,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Upsert loan from server. Skips if local item has pending changes.
+  Future<void> upsertLoanFromServer(Map<String, dynamic> data, String userId) async {
+    final db = await database;
+    final id = data['id']?.toString();
+    if (id == null) return;
+
+    final existing = await db.query(
+      'loans',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    if (existing.isNotEmpty && existing.first['sync_status'] == 'pending') {
+      print('⏭️ Skipping loan $id - has pending local changes');
+      return;
+    }
+
+    final now = DateTime.now().toIso8601String();
+    final isReturned = data['isReturned'];
+    final isHistorical = data['isHistoricalEntry'];
+
+    await db.insert(
+      'loans',
+      {
+        'id': id,
+        'user_id': userId,
+        'person_name': data['personName'] ?? '',
+        'amount': (data['amount'] ?? 0).toDouble(),
+        'currency': data['currency'] ?? 'BDT',
+        'loan_date': data['loanDate'] ?? now,
+        'return_date': data['returnDate'],
+        'is_returned': (isReturned == true || isReturned == 1) ? 1 : 0,
+        'description': data['description'],
+        'created_at': data['createdAt'] ?? now,
+        'updated_at': data['updatedAt'] ?? now,
+        'sync_status': 'synced',
+        'last_synced_at': now,
+        'is_historical_entry': (isHistorical == true || isHistorical == 1) ? 1 : 0,
+        'account_id': data['accountId'],
+        'transaction_id': data['transactionId'],
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Upsert liability from server. Skips if local item has pending changes.
+  Future<void> upsertLiabilityFromServer(Map<String, dynamic> data, String userId) async {
+    final db = await database;
+    final id = data['id']?.toString();
+    if (id == null) return;
+
+    final existing = await db.query(
+      'liabilities',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    if (existing.isNotEmpty && existing.first['sync_status'] == 'pending') {
+      print('⏭️ Skipping liability $id - has pending local changes');
+      return;
+    }
+
+    final now = DateTime.now().toIso8601String();
+    final isPaid = data['isPaid'];
+    final isHistorical = data['isHistoricalEntry'];
+
+    await db.insert(
+      'liabilities',
+      {
+        'id': id,
+        'user_id': userId,
+        'person_name': data['personName'] ?? '',
+        'amount': (data['amount'] ?? 0).toDouble(),
+        'currency': data['currency'] ?? 'BDT',
+        'due_date': data['dueDate'] ?? now,
+        'is_paid': (isPaid == true || isPaid == 1) ? 1 : 0,
+        'description': data['description'],
+        'created_at': data['createdAt'] ?? now,
+        'updated_at': data['updatedAt'] ?? now,
+        'sync_status': 'synced',
+        'last_synced_at': now,
+        'is_historical_entry': (isHistorical == true || isHistorical == 1) ? 1 : 0,
+        'account_id': data['accountId'],
+        'transaction_id': data['transactionId'],
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
   // Delete all user data from database
   Future<void> deleteAllData() async {
     final db = await database;
     await db.transaction((txn) async {
       // Delete all transactions first (due to foreign key constraint)
       await txn.delete('transactions');
-      
+
       // Delete all accounts
       await txn.delete('accounts');
-      
+
       // Delete all loans
       await txn.delete('loans');
-      
+
       // Delete all liabilities
       await txn.delete('liabilities');
-      
+
+      // Delete all budgets
+      await txn.delete('budgets');
+
+      // Delete all recurring transactions
+      await txn.delete('recurring_transactions');
+
       // Delete all custom categories (keep default ones)
       await txn.delete('categories', where: 'is_default = 0');
     });
@@ -868,6 +1322,8 @@ class DatabaseService {
       await txn.delete('accounts', where: 'user_id = ?', whereArgs: [userId]);
       await txn.delete('loans', where: 'user_id = ?', whereArgs: [userId]);
       await txn.delete('liabilities', where: 'user_id = ?', whereArgs: [userId]);
+      await txn.delete('budgets', where: 'user_id = ?', whereArgs: [userId]);
+      await txn.delete('recurring_transactions', where: 'user_id = ?', whereArgs: [userId]);
     });
     
     print('✅ Specific user data cleared from database');

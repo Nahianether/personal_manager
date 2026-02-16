@@ -256,18 +256,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> _downloadUserDataFromServer() async {
     try {
       print('📥 Downloading user data from server...');
-      
-      // TODO: Implement actual server API calls to download user data
-      // For now, this is a placeholder that will be implemented when server APIs are ready
-      
-      // Future implementation will include:
-      // 1. Download accounts from server
-      // 2. Download transactions from server  
-      // 3. Download loans from server
-      // 4. Download liabilities from server
-      // 5. Store all data in local database
-      
-      print('✅ User data download completed (placeholder)');
+
+      final syncService = SyncService();
+      await syncService.downloadAllServerData();
+
+      print('✅ User data download completed');
     } catch (e) {
       print('❌ Error downloading user data: $e');
       // Don't throw here, just log the error

@@ -434,6 +434,162 @@ class EnhancedApiService {
     }
   }
 
+  // ─── Server-to-Local: Fetch methods ───────────────────────────────
+
+  /// Convert server snake_case account response to Flutter camelCase
+  Map<String, dynamic> _convertAccountFromServer(Map<String, dynamic> data) {
+    return {
+      'id': data['id']?.toString(),
+      'name': data['name'],
+      'type': data['account_type'] ?? data['type'],
+      'balance': data['balance'],
+      'currency': data['currency'] ?? 'BDT',
+      'creditLimit': data['credit_limit'] ?? data['creditLimit'],
+      'createdAt': data['created_at'] ?? data['createdAt'],
+      'updatedAt': data['updated_at'] ?? data['updatedAt'],
+    };
+  }
+
+  /// Convert server snake_case transaction response to Flutter camelCase
+  Map<String, dynamic> _convertTransactionFromServer(Map<String, dynamic> data) {
+    return {
+      'id': data['id']?.toString(),
+      'accountId': data['account_id'] ?? data['accountId'],
+      'type': data['transaction_type'] ?? data['type'],
+      'amount': data['amount'],
+      'currency': data['currency'] ?? 'BDT',
+      'category': data['category'],
+      'description': data['description'],
+      'date': data['date'],
+      'createdAt': data['created_at'] ?? data['createdAt'],
+    };
+  }
+
+  /// Convert server snake_case loan response to Flutter camelCase
+  Map<String, dynamic> _convertLoanFromServer(Map<String, dynamic> data) {
+    return {
+      'id': data['id']?.toString(),
+      'personName': data['person_name'] ?? data['personName'],
+      'amount': data['amount'],
+      'currency': data['currency'] ?? 'BDT',
+      'loanDate': data['loan_date'] ?? data['loanDate'],
+      'returnDate': data['return_date'] ?? data['returnDate'],
+      'isReturned': data['is_returned'] ?? data['isReturned'] ?? false,
+      'description': data['description'],
+      'createdAt': data['created_at'] ?? data['createdAt'],
+      'updatedAt': data['updated_at'] ?? data['updatedAt'],
+      'isHistoricalEntry': data['is_historical_entry'] ?? data['isHistoricalEntry'] ?? false,
+      'accountId': data['account_id'] ?? data['accountId'],
+      'transactionId': data['transaction_id'] ?? data['transactionId'],
+    };
+  }
+
+  /// Convert server snake_case liability response to Flutter camelCase
+  Map<String, dynamic> _convertLiabilityFromServer(Map<String, dynamic> data) {
+    return {
+      'id': data['id']?.toString(),
+      'personName': data['person_name'] ?? data['personName'],
+      'amount': data['amount'],
+      'currency': data['currency'] ?? 'BDT',
+      'dueDate': data['due_date'] ?? data['dueDate'],
+      'isPaid': data['is_paid'] ?? data['isPaid'] ?? false,
+      'description': data['description'],
+      'createdAt': data['created_at'] ?? data['createdAt'],
+      'updatedAt': data['updated_at'] ?? data['updatedAt'],
+      'isHistoricalEntry': data['is_historical_entry'] ?? data['isHistoricalEntry'] ?? false,
+      'accountId': data['account_id'] ?? data['accountId'],
+      'transactionId': data['transaction_id'] ?? data['transactionId'],
+    };
+  }
+
+  /// Parse response body that could be a list or wrapped in a key
+  List<Map<String, dynamic>> _parseListResponse(dynamic responseData, String key) {
+    if (responseData is List) {
+      return responseData.cast<Map<String, dynamic>>();
+    } else if (responseData is Map && responseData[key] is List) {
+      return (responseData[key] as List).cast<Map<String, dynamic>>();
+    } else if (responseData is Map && responseData['data'] is List) {
+      return (responseData['data'] as List).cast<Map<String, dynamic>>();
+    }
+    return [];
+  }
+
+  /// Fetch all accounts from server
+  Future<List<Map<String, dynamic>>> fetchAccounts() async {
+    try {
+      print('📥 Fetching accounts from server...');
+      final response = await _dio.get('/accounts');
+
+      if (response.statusCode == 200 && response.data != null) {
+        final items = _parseListResponse(response.data, 'accounts');
+        final converted = items.map((item) => _convertAccountFromServer(item)).toList();
+        print('✅ Fetched ${converted.length} accounts from server');
+        return converted;
+      }
+      return [];
+    } catch (e) {
+      print('❌ Error fetching accounts from server: $e');
+      return [];
+    }
+  }
+
+  /// Fetch all transactions from server
+  Future<List<Map<String, dynamic>>> fetchTransactions() async {
+    try {
+      print('📥 Fetching transactions from server...');
+      final response = await _dio.get('/transactions');
+
+      if (response.statusCode == 200 && response.data != null) {
+        final items = _parseListResponse(response.data, 'transactions');
+        final converted = items.map((item) => _convertTransactionFromServer(item)).toList();
+        print('✅ Fetched ${converted.length} transactions from server');
+        return converted;
+      }
+      return [];
+    } catch (e) {
+      print('❌ Error fetching transactions from server: $e');
+      return [];
+    }
+  }
+
+  /// Fetch all loans from server
+  Future<List<Map<String, dynamic>>> fetchLoans() async {
+    try {
+      print('📥 Fetching loans from server...');
+      final response = await _dio.get('/loans');
+
+      if (response.statusCode == 200 && response.data != null) {
+        final items = _parseListResponse(response.data, 'loans');
+        final converted = items.map((item) => _convertLoanFromServer(item)).toList();
+        print('✅ Fetched ${converted.length} loans from server');
+        return converted;
+      }
+      return [];
+    } catch (e) {
+      print('❌ Error fetching loans from server: $e');
+      return [];
+    }
+  }
+
+  /// Fetch all liabilities from server
+  Future<List<Map<String, dynamic>>> fetchLiabilities() async {
+    try {
+      print('📥 Fetching liabilities from server...');
+      final response = await _dio.get('/liabilities');
+
+      if (response.statusCode == 200 && response.data != null) {
+        final items = _parseListResponse(response.data, 'liabilities');
+        final converted = items.map((item) => _convertLiabilityFromServer(item)).toList();
+        print('✅ Fetched ${converted.length} liabilities from server');
+        return converted;
+      }
+      return [];
+    } catch (e) {
+      print('❌ Error fetching liabilities from server: $e');
+      return [];
+    }
+  }
+
   /// Delete operations with proper error handling
   Future<bool> deleteAccount(String accountId) async {
     try {
