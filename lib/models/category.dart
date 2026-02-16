@@ -71,7 +71,7 @@ class Category {
       'name': name,
       'type': type.toString().split('.').last,
       'iconCodePoint': icon.codePoint,
-      'colorValue': color.value,
+      'colorValue': color.toARGB32(),
       'isDefault': isDefault,
       'createdAt': createdAt.toIso8601String(),
     };

@@ -358,7 +358,7 @@ class _CategorySelectorState extends ConsumerState<CategorySelector> {
                     color: selectedColor,
                   );
                   
-                  if (mounted) {
+                  if (context.mounted) {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(

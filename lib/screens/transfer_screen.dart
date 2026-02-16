@@ -64,13 +64,13 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
                   end: Alignment.bottomRight,
                   colors: [
                     Colors.blue,
-                    Colors.blue.withOpacity(0.8),
+                    Colors.blue.withValues(alpha: 0.8),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.blue.withOpacity(0.3),
+                    color: Colors.blue.withValues(alpha: 0.3),
                     blurRadius: 15,
                     offset: const Offset(0, 8),
                   ),
@@ -96,7 +96,7 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
                   Text(
                     'Move money from one account to another',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.white.withOpacity(0.8),
+                      color: Colors.white.withValues(alpha: 0.8),
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -404,8 +404,8 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: isLowBalance 
-            ? Colors.orange.withOpacity(0.1)
-            : Colors.green.withOpacity(0.1),
+            ? Colors.orange.withValues(alpha: 0.1)
+            : Colors.green.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: isLowBalance ? Colors.orange : Colors.green,
@@ -463,7 +463,7 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: color, width: 1),
       ),

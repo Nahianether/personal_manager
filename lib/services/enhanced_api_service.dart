@@ -514,11 +514,11 @@ class EnhancedApiService {
     return [];
   }
 
-  /// Fetch all accounts from server
+  /// Fetch all accounts from server (uses /api/accounts for auth-protected, user-filtered data)
   Future<List<Map<String, dynamic>>> fetchAccounts() async {
     try {
       print('📥 Fetching accounts from server...');
-      final response = await _dio.get('/accounts');
+      final response = await _dio.get('/api/accounts');
 
       if (response.statusCode == 200 && response.data != null) {
         final items = _parseListResponse(response.data, 'accounts');
@@ -533,11 +533,11 @@ class EnhancedApiService {
     }
   }
 
-  /// Fetch all transactions from server
+  /// Fetch all transactions from server (uses /api/transactions for auth-protected, user-filtered data)
   Future<List<Map<String, dynamic>>> fetchTransactions() async {
     try {
       print('📥 Fetching transactions from server...');
-      final response = await _dio.get('/transactions');
+      final response = await _dio.get('/api/transactions');
 
       if (response.statusCode == 200 && response.data != null) {
         final items = _parseListResponse(response.data, 'transactions');
@@ -552,11 +552,11 @@ class EnhancedApiService {
     }
   }
 
-  /// Fetch all loans from server
+  /// Fetch all loans from server (uses /api/loans for auth-protected, user-filtered data)
   Future<List<Map<String, dynamic>>> fetchLoans() async {
     try {
       print('📥 Fetching loans from server...');
-      final response = await _dio.get('/loans');
+      final response = await _dio.get('/api/loans');
 
       if (response.statusCode == 200 && response.data != null) {
         final items = _parseListResponse(response.data, 'loans');
@@ -571,11 +571,11 @@ class EnhancedApiService {
     }
   }
 
-  /// Fetch all liabilities from server
+  /// Fetch all liabilities from server (uses /api/liabilities for auth-protected, user-filtered data)
   Future<List<Map<String, dynamic>>> fetchLiabilities() async {
     try {
       print('📥 Fetching liabilities from server...');
-      final response = await _dio.get('/liabilities');
+      final response = await _dio.get('/api/liabilities');
 
       if (response.statusCode == 200 && response.data != null) {
         final items = _parseListResponse(response.data, 'liabilities');

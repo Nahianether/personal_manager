@@ -125,7 +125,7 @@ class ThemeNotifier extends StateNotifier<ThemeState> {
     cardTheme: CardThemeData(
       color: Colors.white,
       elevation: 2,
-      shadowColor: Colors.black.withOpacity(0.1),
+      shadowColor: Colors.black.withValues(alpha: 0.1),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
@@ -202,7 +202,7 @@ class ThemeNotifier extends StateNotifier<ThemeState> {
     cardTheme: CardThemeData(
       color: const Color(0xFF1E1E1E),
       elevation: 4,
-      shadowColor: Colors.black.withOpacity(0.3),
+      shadowColor: Colors.black.withValues(alpha: 0.3),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
