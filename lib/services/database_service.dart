@@ -7,6 +7,7 @@ import '../models/liability.dart';
 import '../models/category.dart';
 import '../models/budget.dart';
 import '../models/recurring_transaction.dart';
+import '../models/savings_goal.dart';
 import 'sync_service.dart';
 import 'connectivity_service.dart';
 import 'auth_service.dart';
@@ -68,7 +69,7 @@ class DatabaseService {
     try {
       final db = await openDatabase(
         path,
-        version: 11,
+        version: 12,
         onCreate: _createTables,
         onUpgrade: _upgradeDatabase,
       );
@@ -99,7 +100,7 @@ class DatabaseService {
           // Create a fresh database
           final db = await openDatabase(
             path,
-            version: 11,
+            version: 12,
             onCreate: _createTables,
             onUpgrade: _upgradeDatabase,
           );
@@ -261,6 +262,26 @@ class DatabaseService {
         end_date TEXT,
         next_due_date TEXT NOT NULL,
         is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        sync_status TEXT NOT NULL DEFAULT 'pending',
+        last_synced_at TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE savings_goals (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        target_amount REAL NOT NULL,
+        current_amount REAL NOT NULL DEFAULT 0.0,
+        currency TEXT NOT NULL DEFAULT 'BDT',
+        target_date TEXT NOT NULL,
+        description TEXT,
+        account_id TEXT,
+        priority TEXT NOT NULL DEFAULT 'medium',
+        is_completed INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         sync_status TEXT NOT NULL DEFAULT 'pending',
@@ -431,6 +452,28 @@ class DatabaseService {
       await db.execute(
         "ALTER TABLE budgets ADD COLUMN currency TEXT NOT NULL DEFAULT 'BDT'"
       );
+    }
+
+    if (oldVersion < 12) {
+      await db.execute('''
+        CREATE TABLE savings_goals (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          target_amount REAL NOT NULL,
+          current_amount REAL NOT NULL DEFAULT 0.0,
+          currency TEXT NOT NULL DEFAULT 'BDT',
+          target_date TEXT NOT NULL,
+          description TEXT,
+          account_id TEXT,
+          priority TEXT NOT NULL DEFAULT 'medium',
+          is_completed INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          sync_status TEXT NOT NULL DEFAULT 'pending',
+          last_synced_at TEXT
+        )
+      ''');
     }
   }
 
@@ -826,6 +869,102 @@ class DatabaseService {
     
     await db.delete(
       'liabilities',
+      where: userId != null ? 'id = ? AND user_id = ?' : 'id = ?',
+      whereArgs: userId != null ? [id, userId] : [id],
+    );
+  }
+
+  // Savings Goal operations
+
+  Future<List<SavingsGoal>> getAllSavingsGoals() async {
+    final db = await database;
+    final userId = await _getCurrentUserId();
+
+    final List<Map<String, dynamic>> maps = await db.query(
+      'savings_goals',
+      where: userId != null ? 'user_id = ?' : null,
+      whereArgs: userId != null ? [userId] : null,
+      orderBy: 'target_date ASC',
+    );
+
+    return List.generate(maps.length, (i) {
+      return SavingsGoal.fromJson({
+        'id': maps[i]['id'],
+        'name': maps[i]['name'],
+        'targetAmount': maps[i]['target_amount'],
+        'currentAmount': maps[i]['current_amount'],
+        'currency': maps[i]['currency'],
+        'targetDate': maps[i]['target_date'],
+        'description': maps[i]['description'],
+        'accountId': maps[i]['account_id'],
+        'priority': maps[i]['priority'],
+        'isCompleted': maps[i]['is_completed'] == 1,
+        'createdAt': maps[i]['created_at'],
+        'updatedAt': maps[i]['updated_at'],
+      });
+    });
+  }
+
+  Future<void> insertSavingsGoal(SavingsGoal goal) async {
+    final db = await database;
+    final userId = await _getCurrentUserId();
+
+    await db.insert(
+      'savings_goals',
+      {
+        'id': goal.id,
+        'user_id': userId ?? '',
+        'name': goal.name,
+        'target_amount': goal.targetAmount,
+        'current_amount': goal.currentAmount,
+        'currency': goal.currency,
+        'target_date': goal.targetDate.toIso8601String(),
+        'description': goal.description,
+        'account_id': goal.accountId,
+        'priority': goal.priority,
+        'is_completed': goal.isCompleted ? 1 : 0,
+        'created_at': goal.createdAt.toIso8601String(),
+        'updated_at': goal.updatedAt.toIso8601String(),
+        'sync_status': 'pending',
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+
+    _triggerImmediateSync('savings_goals', goal.id);
+  }
+
+  Future<void> updateSavingsGoal(SavingsGoal goal) async {
+    final db = await database;
+    final userId = await _getCurrentUserId();
+
+    await db.update(
+      'savings_goals',
+      {
+        'name': goal.name,
+        'target_amount': goal.targetAmount,
+        'current_amount': goal.currentAmount,
+        'currency': goal.currency,
+        'target_date': goal.targetDate.toIso8601String(),
+        'description': goal.description,
+        'account_id': goal.accountId,
+        'priority': goal.priority,
+        'is_completed': goal.isCompleted ? 1 : 0,
+        'updated_at': goal.updatedAt.toIso8601String(),
+        'sync_status': 'pending',
+      },
+      where: userId != null ? 'id = ? AND user_id = ?' : 'id = ?',
+      whereArgs: userId != null ? [goal.id, userId] : [goal.id],
+    );
+
+    _triggerImmediateSync('savings_goals', goal.id);
+  }
+
+  Future<void> deleteSavingsGoal(String id) async {
+    final db = await database;
+    final userId = await _getCurrentUserId();
+
+    await db.delete(
+      'savings_goals',
       where: userId != null ? 'id = ? AND user_id = ?' : 'id = ?',
       whereArgs: userId != null ? [id, userId] : [id],
     );
@@ -1351,6 +1490,7 @@ class DatabaseService {
     final categories = await db.query('categories');
     final budgets = await db.query('budgets');
     final recurringTransactions = await db.query('recurring_transactions');
+    final savingsGoals = await db.query('savings_goals');
 
     return {
       'Accounts': accounts,
@@ -1360,6 +1500,7 @@ class DatabaseService {
       'Categories': categories,
       'Budgets': budgets,
       'RecurringTransactions': recurringTransactions,
+      'SavingsGoals': savingsGoals,
     };
   }
 
@@ -1411,6 +1552,13 @@ class DatabaseService {
           }
         }
       }
+
+      // Import savings goals
+      if (data['SavingsGoals'] != null) {
+        for (final goal in data['SavingsGoals']!) {
+          await txn.insert('savings_goals', goal, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      }
     });
   }
 
@@ -1420,6 +1568,7 @@ class DatabaseService {
 
     await db.transaction((txn) async {
       // Clear existing data first (order matters for foreign keys)
+      await txn.delete('savings_goals');
       await txn.delete('recurring_transactions');
       await txn.delete('budgets');
       await txn.delete('transactions');
@@ -1476,6 +1625,13 @@ class DatabaseService {
       if (data['RecurringTransactions'] != null) {
         for (final row in data['RecurringTransactions']!) {
           await txn.insert('recurring_transactions', row, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      }
+
+      // Import savings goals
+      if (data['SavingsGoals'] != null) {
+        for (final row in data['SavingsGoals']!) {
+          await txn.insert('savings_goals', row, conflictAlgorithm: ConflictAlgorithm.replace);
         }
       }
     });

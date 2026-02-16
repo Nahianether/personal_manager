@@ -22,6 +22,8 @@ import 'transactions_screen.dart';
 import 'debts_screen.dart';
 import 'settings_screen.dart';
 import 'reports_screen.dart';
+import 'savings_goals_screen.dart';
+import '../providers/savings_goal_provider.dart';
 import 'transfer_screen.dart';
 import 'budget_screen.dart';
 import 'notifications_screen.dart';
@@ -57,6 +59,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ref.read(budgetProvider.notifier).loadBudgets(),
       ref.read(recurringTransactionProvider.notifier).loadRecurringTransactions(),
       ref.read(currencyProvider.notifier).loadExchangeRates(),
+      ref.read(savingsGoalProvider.notifier).loadGoals(),
     ]);
 
     // Generate any due recurring transactions after all data is loaded
@@ -85,6 +88,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           AccountsScreen(),
           TransactionsScreen(),
           DebtsScreen(),
+          SavingsGoalsScreen(),
           ReportsScreen(),
         ],
       ),
@@ -124,6 +128,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             BottomNavigationBarItem(
               icon: Icon(Icons.credit_card_rounded),
               label: 'Debts',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.savings_rounded),
+              label: 'Goals',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.analytics_rounded),
