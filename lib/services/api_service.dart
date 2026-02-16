@@ -291,6 +291,31 @@ class ApiService {
     }
   }
 
+  // Preference API endpoints
+  Future<String?> getPreference() async {
+    try {
+      final response = await _dio.get('/api/preferences');
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        return response.data['data']['displayCurrency'] as String?;
+      }
+    } catch (e) {
+      print('Error fetching preferences: $e');
+    }
+    return null;
+  }
+
+  Future<bool> updatePreference(String displayCurrency) async {
+    try {
+      final response = await _dio.put('/api/preferences', data: {
+        'displayCurrency': displayCurrency,
+      });
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error updating preferences: $e');
+      return false;
+    }
+  }
+
   // Health check - try multiple endpoints to verify server connectivity
   Future<bool> isServerReachable() async {
     try {

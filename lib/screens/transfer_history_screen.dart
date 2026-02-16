@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/transaction.dart';
 import '../providers/transaction_provider.dart';
 import '../providers/account_provider.dart';
+import '../utils/currency_utils.dart';
 
 class _TransferRecord {
   final String fromAccountId;
@@ -131,7 +132,6 @@ class _TransferHistoryScreenState extends ConsumerState<TransferHistoryScreen> {
     final transactionState = ref.watch(transactionProvider);
     final accountState = ref.watch(accountProvider);
     final records = _buildTransferRecords(transactionState.transactions);
-    final currencyFormatter = NumberFormat.currency(symbol: '\u09F3', decimalDigits: 0);
     final dateFormat = DateFormat('MMM d, yyyy');
 
     final hasPreselectedAccount = widget.accountId != null;
@@ -183,9 +183,15 @@ class _TransferHistoryScreenState extends ConsumerState<TransferHistoryScreen> {
                     padding: const EdgeInsets.all(16),
                     itemCount: records.length,
                     itemBuilder: (context, index) {
+                      final record = records[index];
+                      final fromAcct = accountState.accounts
+                          .where((a) => a.id == record.fromAccountId)
+                          .firstOrNull;
+                      final currencyFormatter = CurrencyUtils.getFormatter(
+                          fromAcct?.currency ?? 'BDT');
                       return _buildTransferCard(
                         context,
-                        records[index],
+                        record,
                         currencyFormatter,
                         dateFormat,
                       );

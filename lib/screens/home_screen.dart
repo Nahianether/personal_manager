@@ -10,6 +10,8 @@ import '../providers/transaction_provider.dart';
 import '../providers/budget_provider.dart';
 import '../providers/recurring_transaction_provider.dart';
 import '../providers/notification_provider.dart';
+import '../providers/currency_provider.dart';
+import '../utils/currency_utils.dart';
 import '../models/transaction.dart';
 import '../models/category.dart';
 import '../widgets/category_selector.dart';
@@ -54,6 +56,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ref.read(transactionProvider.notifier).loadAllTransactions(),
       ref.read(budgetProvider.notifier).loadBudgets(),
       ref.read(recurringTransactionProvider.notifier).loadRecurringTransactions(),
+      ref.read(currencyProvider.notifier).loadExchangeRates(),
     ]);
 
     // Generate any due recurring transactions after all data is loaded
@@ -138,10 +141,8 @@ class DashboardTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final currencyFormatter = NumberFormat.currency(
-      symbol: '৳',
-      decimalDigits: 2,
-    );
+    final currencyState = ref.watch(currencyProvider);
+    final currencyFormatter = CurrencyUtils.getFormatter(currencyState.displayCurrency);
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -345,8 +346,9 @@ class DashboardTab extends ConsumerWidget {
             Consumer(
               builder: (context, ref, child) {
                 final accountState = ref.watch(accountProvider);
+                final cState = ref.watch(currencyProvider);
                 return _buildBalanceCard(
-                    context, accountState.totalBalance, currencyFormatter);
+                    context, accountState.convertedTotalBalance(cState), currencyFormatter);
               },
             ),
           );
@@ -1244,7 +1246,7 @@ class _TransactionEntryScreenState extends ConsumerState<_TransactionEntryScreen
                       decoration: InputDecoration(
                         border: const OutlineInputBorder(),
                         labelText: widget.transactionType == TransactionType.income ? 'Income Amount' : 'Expense Amount',
-                        prefixText: '৳ ',
+                        prefixText: '${CurrencyUtils.getSymbol(_selectedAccountId != null ? accountState.accounts.firstWhere((a) => a.id == _selectedAccountId!, orElse: () => accountState.accounts.first).currency : 'BDT')} ',
                       ),
                     ),
                   ],

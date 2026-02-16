@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../providers/account_provider.dart';
+import '../providers/currency_provider.dart';
+import '../utils/currency_utils.dart';
 import '../models/account.dart';
 import 'transfer_screen.dart';
 import 'transfer_history_screen.dart';
@@ -16,10 +18,8 @@ class AccountsScreen extends ConsumerStatefulWidget {
 class _AccountsScreenState extends ConsumerState<AccountsScreen> {
   @override
   Widget build(BuildContext context) {
-    final currencyFormatter = NumberFormat.currency(
-      symbol: '৳',
-      decimalDigits: 2,
-    );
+    final currencyState = ref.watch(currencyProvider);
+    final displayCurrencyFormatter = CurrencyUtils.getFormatter(currencyState.displayCurrency);
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -166,7 +166,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            currencyFormatter.format(accountState.totalBalance),
+                            displayCurrencyFormatter.format(accountState.convertedTotalBalance(currencyState)),
                             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                                   color: Theme.of(context).colorScheme.onPrimaryContainer,
                                   fontWeight: FontWeight.bold,
@@ -243,7 +243,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                         trailing: Container(
                           width: 120,
                           constraints: const BoxConstraints(maxHeight: 50),
-                          child: _buildBalanceDisplay(context, account, currencyFormatter),
+                          child: _buildBalanceDisplay(context, account, displayCurrencyFormatter),
                         ),
                         onTap: () => _showAccountDetails(context, account),
                       ),
@@ -520,7 +520,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
   }
 
   List<Widget> _buildAccountDetails(BuildContext context, Account account) {
-    final currencyFormatter = NumberFormat.currency(symbol: '৳', decimalDigits: 2);
+    final currencyFormatter = CurrencyUtils.getFormatter(account.currency);
 
     if (account.isCreditCard && account.creditLimit != null) {
       return [
@@ -638,10 +638,10 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                   TextField(
                     controller: creditLimitController,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Credit Limit',
-                      border: OutlineInputBorder(),
-                      prefixText: '৳ ',
+                      border: const OutlineInputBorder(),
+                      prefixText: '${CurrencyUtils.getSymbol('BDT')} ',
                       helperText: 'Maximum amount you can spend',
                     ),
                   ),
@@ -653,7 +653,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                   decoration: InputDecoration(
                     labelText: selectedType == AccountType.creditCard ? 'Current Used Amount' : 'Initial Balance',
                     border: const OutlineInputBorder(),
-                    prefixText: '৳ ',
+                    prefixText: '${CurrencyUtils.getSymbol('BDT')} ',
                     helperText: selectedType == AccountType.creditCard ? 'Amount already spent on the card' : null,
                   ),
                 ),
@@ -751,10 +751,10 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                 TextField(
                   controller: balanceController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Balance',
-                    border: OutlineInputBorder(),
-                    prefixText: '৳ ',
+                    border: const OutlineInputBorder(),
+                    prefixText: '${CurrencyUtils.getSymbol(account.currency)} ',
                   ),
                 ),
               ],

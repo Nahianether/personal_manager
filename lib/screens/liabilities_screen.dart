@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../providers/liability_provider.dart';
+import '../providers/currency_provider.dart';
 import '../providers/account_provider.dart';
+import '../utils/currency_utils.dart';
 import '../models/liability.dart';
 import '../models/account.dart';
 
@@ -16,10 +18,8 @@ class LiabilitiesScreen extends ConsumerStatefulWidget {
 class _LiabilitiesScreenState extends ConsumerState<LiabilitiesScreen> {
   @override
   Widget build(BuildContext context) {
-    final currencyFormatter = NumberFormat.currency(
-      symbol: '৳',
-      decimalDigits: 2,
-    );
+    final currencyState = ref.watch(currencyProvider);
+    final currencyFormatter = CurrencyUtils.getFormatter(currencyState.displayCurrency);
 
     return Scaffold(
       appBar: AppBar(
@@ -204,7 +204,7 @@ class _LiabilitiesScreenState extends ConsumerState<LiabilitiesScreen> {
                                     children: [
                                       Text(account.name),
                                       Text(
-                                        'Balance: ৳${account.balance.toStringAsFixed(2)}',
+                                        'Balance: ${CurrencyUtils.formatCurrency(account.balance, account.currency)}',
                                         style: Theme.of(context).textTheme.bodySmall,
                                       ),
                                     ],
@@ -241,12 +241,12 @@ class _LiabilitiesScreenState extends ConsumerState<LiabilitiesScreen> {
                   );
                   return;
                 }
-                
+
                 // Check sufficient balance for non-historical liabilities
                 if (!liability.isHistoricalEntry && selectedAccount != null && selectedAccount!.balance < liability.amount) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Insufficient balance. Available: ৳${selectedAccount!.balance.toStringAsFixed(2)}'),
+                      content: Text('Insufficient balance. Available: ${CurrencyUtils.formatCurrency(selectedAccount!.balance, selectedAccount!.currency)}'),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -261,7 +261,7 @@ class _LiabilitiesScreenState extends ConsumerState<LiabilitiesScreen> {
                 
                 final message = liability.isHistoricalEntry 
                   ? 'Historical liability marked as paid!'
-                  : 'Liability paid and ৳${liability.amount.toStringAsFixed(2)} debited from ${selectedAccount!.name}';
+                  : 'Liability paid and ${CurrencyUtils.formatCurrency(liability.amount, liability.currency)} debited from ${selectedAccount!.name}';
                   
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(message)),
@@ -303,10 +303,10 @@ class _LiabilitiesScreenState extends ConsumerState<LiabilitiesScreen> {
                 TextField(
                   controller: amountController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Liability Amount',
-                    border: OutlineInputBorder(),
-                    prefixText: '৳ ',
+                    border: const OutlineInputBorder(),
+                    prefixText: '${CurrencyUtils.getSymbol('BDT')} ',
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -372,7 +372,7 @@ class _LiabilitiesScreenState extends ConsumerState<LiabilitiesScreen> {
                                   children: [
                                     Text(account.name),
                                     Text(
-                                      'Balance: ৳${account.balance.toStringAsFixed(2)}',
+                                      'Balance: ${CurrencyUtils.formatCurrency(account.balance, account.currency)}',
                                       style: Theme.of(context).textTheme.bodySmall,
                                     ),
                                   ],

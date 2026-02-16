@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../providers/transaction_provider.dart';
 import '../providers/account_provider.dart';
+import '../providers/currency_provider.dart';
 import '../models/transaction.dart';
 import '../models/category.dart';
+import '../utils/currency_utils.dart';
 import '../widgets/category_selector.dart';
 import 'recurring_transactions_screen.dart';
 
@@ -166,7 +168,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> with Ti
 
   Widget _buildFilterChips() {
     final dateFormatter = DateFormat('dd MMM');
-    final currencyFormatter = NumberFormat.currency(symbol: '৳', decimalDigits: 0);
+    final currencyFormatter = CurrencyUtils.getFormatter(ref.watch(currencyProvider).displayCurrency);
     final accountState = ref.watch(accountProvider);
 
     return Container(
@@ -290,8 +292,6 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> with Ti
   }
 
   Widget _buildTransactionList(TransactionType? filterType) {
-    final currencyFormatter = NumberFormat.currency(symbol: '৳', decimalDigits: 2);
-
     return Consumer(
       builder: (context, ref, child) {
         final transactionState = ref.watch(transactionProvider);
@@ -412,7 +412,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> with Ti
                         ],
                       ),
                       trailing: Text(
-                        '${transaction.type == TransactionType.expense ? '-' : '+'}${currencyFormatter.format(transaction.amount.abs())}',
+                        '${transaction.type == TransactionType.expense ? '-' : '+'}${CurrencyUtils.formatCurrency(transaction.amount.abs(), transaction.currency)}',
                         style: TextStyle(
                           color: _getTransactionColor(transaction.type),
                           fontWeight: FontWeight.bold,
@@ -590,11 +590,11 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> with Ti
                           child: TextField(
                             controller: amountMinController,
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              border: OutlineInputBorder(),
+                            decoration: InputDecoration(
+                              border: const OutlineInputBorder(),
                               hintText: 'Min',
-                              prefixText: '৳ ',
-                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              prefixText: '${CurrencyUtils.getSymbol(ref.read(currencyProvider).displayCurrency)} ',
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                             ),
                             onChanged: (v) {
                               tempAmountMin = double.tryParse(v);
@@ -609,11 +609,11 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> with Ti
                           child: TextField(
                             controller: amountMaxController,
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              border: OutlineInputBorder(),
+                            decoration: InputDecoration(
+                              border: const OutlineInputBorder(),
                               hintText: 'Max',
-                              prefixText: '৳ ',
-                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              prefixText: '${CurrencyUtils.getSymbol(ref.read(currencyProvider).displayCurrency)} ',
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                             ),
                             onChanged: (v) {
                               tempAmountMax = double.tryParse(v);
@@ -866,7 +866,7 @@ class _TransactionEntryScreenState extends ConsumerState<_TransactionEntryScreen
                       decoration: InputDecoration(
                         border: const OutlineInputBorder(),
                         labelText: widget.transactionType == TransactionType.income ? 'Income Amount' : 'Expense Amount',
-                        prefixText: '৳ ',
+                        prefixText: '${CurrencyUtils.getSymbol(accountState.accounts.where((a) => a.id == _selectedAccountId).firstOrNull?.currency ?? 'BDT')} ',
                       ),
                     ),
                   ],

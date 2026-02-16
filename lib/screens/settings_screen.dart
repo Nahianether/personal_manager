@@ -8,8 +8,12 @@ import '../providers/liability_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/sync_provider.dart';
+import '../providers/currency_provider.dart';
 import '../services/database_service.dart';
 import '../services/excel_service.dart';
+import '../services/backup_service.dart';
+import '../widgets/currency_picker.dart';
+import 'package:intl/intl.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -133,6 +137,8 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
+          _buildCurrencyCard(context, ref),
+          const SizedBox(height: 16),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -176,14 +182,45 @@ class SettingsScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Data Management',
+                    'Backup & Restore',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 16),
                   _buildActionRow(
                     context,
-                    Icons.file_download_outlined,
-                    'Export Data',
+                    Icons.backup_outlined,
+                    'Create Backup',
+                    'Save complete backup as JSON file',
+                    () => _createBackup(context, ref),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildActionRow(
+                    context,
+                    Icons.restore_outlined,
+                    'Restore Backup',
+                    'Restore from a JSON backup file',
+                    () => _restoreBackup(context, ref),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Import / Export',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildActionRow(
+                    context,
+                    Icons.table_chart_outlined,
+                    'Export to Excel',
                     'Export all data to Excel file',
                     () => _exportData(context, ref),
                   ),
@@ -191,11 +228,36 @@ class SettingsScreen extends ConsumerWidget {
                   _buildActionRow(
                     context,
                     Icons.file_upload_outlined,
-                    'Import Data',
+                    'Import from Excel',
                     'Import data from Excel file',
                     () => _importData(context, ref),
                   ),
                   const SizedBox(height: 12),
+                  _buildActionRow(
+                    context,
+                    Icons.description_outlined,
+                    'Import from CSV',
+                    'Import transactions from CSV file',
+                    () => _importCsv(context, ref),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Danger Zone',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   _buildActionRow(
                     context,
                     Icons.delete_forever_outlined,
@@ -292,7 +354,7 @@ class SettingsScreen extends ConsumerWidget {
     IconData icon,
     String title,
     String subtitle,
-    VoidCallback onTap, {
+    VoidCallback? onTap, {
     bool isDestructive = false,
   }) {
     return InkWell(
@@ -417,6 +479,43 @@ class SettingsScreen extends ConsumerWidget {
         // For auto, use a neutral color that represents system sync
         return const Color(0xFF9C27B0); // Purple color for auto mode
     }
+  }
+
+  Widget _buildCurrencyCard(BuildContext context, WidgetRef ref) {
+    final currencyState = ref.watch(currencyProvider);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Currency',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 16),
+            CurrencyPicker(
+              selectedCurrency: currencyState.displayCurrency,
+              onCurrencyChanged: (code) {
+                ref.read(currencyProvider.notifier).setDisplayCurrency(code);
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildActionRow(
+              context,
+              Icons.sync,
+              'Refresh Exchange Rates',
+              currencyState.ratesLastUpdated != null
+                  ? 'Updated: ${DateFormat('dd MMM yyyy, HH:mm').format(currencyState.ratesLastUpdated!)}'
+                  : 'Not yet loaded',
+              currencyState.isLoading
+                  ? null
+                  : () => ref.read(currencyProvider.notifier).refreshRates(),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showDeleteAllDataDialog(BuildContext context, WidgetRef ref) {
@@ -637,6 +736,213 @@ class SettingsScreen extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Import error: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _createBackup(BuildContext context, WidgetRef ref) async {
+    if (!context.mounted) return;
+
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Creating backup...'),
+            ],
+          ),
+        ),
+      );
+
+      final filePath = await BackupService().exportBackup();
+
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+
+        if (filePath != null) {
+          final shouldShare = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Backup Created'),
+              content: const Text('Backup file saved successfully. Would you like to share it?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Done'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Share'),
+                ),
+              ],
+            ),
+          );
+
+          if (shouldShare == true) {
+            await BackupService().shareBackup(filePath);
+          }
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Failed to create backup'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Backup error: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _restoreBackup(BuildContext context, WidgetRef ref) async {
+    if (!context.mounted) return;
+
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Restore Backup'),
+          content: const Text(
+            'Restoring a backup will replace ALL existing data.\n\n'
+            'Make sure you have a current backup before proceeding.\n\n'
+            'Do you want to continue?'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Restore'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true || !context.mounted) return;
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Restoring backup...'),
+            ],
+          ),
+        ),
+      );
+
+      final success = await BackupService().restoreBackup();
+
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+
+        if (success) {
+          ref.invalidate(accountProvider);
+          ref.invalidate(transactionProvider);
+          ref.invalidate(loanProvider);
+          ref.invalidate(liabilityProvider);
+          ref.invalidate(categoryProvider);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Backup restored successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Failed to restore backup. Check file format.'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Restore error: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _importCsv(BuildContext context, WidgetRef ref) async {
+    if (!context.mounted) return;
+
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Importing CSV...'),
+            ],
+          ),
+        ),
+      );
+
+      final result = await BackupService().importCsv();
+
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+
+        if (result['success'] == true) {
+          ref.invalidate(accountProvider);
+          ref.invalidate(transactionProvider);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Imported ${result['imported']} ${result['type']}'
+                '${(result['skipped'] as int) > 0 ? ', skipped ${result['skipped']}' : ''}',
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['error'] ?? 'Failed to import CSV'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('CSV import error: $e'),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );

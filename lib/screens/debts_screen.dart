@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../providers/loan_provider.dart';
 import '../providers/liability_provider.dart';
+import '../providers/currency_provider.dart';
 import '../providers/account_provider.dart';
+import '../utils/currency_utils.dart';
 import '../models/loan.dart';
 import '../models/liability.dart';
 import '../models/account.dart';
@@ -32,10 +34,8 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormatter = NumberFormat.currency(
-      symbol: '৳',
-      decimalDigits: 2,
-    );
+    final currencyState = ref.watch(currencyProvider);
+    final currencyFormatter = CurrencyUtils.getFormatter(currencyState.displayCurrency);
 
     return Scaffold(
       appBar: AppBar(
@@ -771,10 +771,10 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                 TextField(
                   controller: amountController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Loan Amount',
-                    border: OutlineInputBorder(),
-                    prefixText: '৳ ',
+                    border: const OutlineInputBorder(),
+                    prefixText: '${CurrencyUtils.getSymbol(selectedAccount?.currency ?? 'BDT')} ',
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -864,7 +864,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                           return DropdownMenuItem<Account>(
                             value: account,
                             child: Text(
-                              '${account.name} (৳${account.balance.toStringAsFixed(2)})',
+                              '${account.name} (${CurrencyUtils.formatCurrency(account.balance, account.currency)})',
                               overflow: TextOverflow.ellipsis,
                             ),
                           );
@@ -879,7 +879,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                   ),
                   const SizedBox(height: 16),
                 ],
-                
+
                 TextField(
                   controller: descriptionController,
                   decoration: const InputDecoration(
@@ -928,7 +928,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                 if (!isHistoricalEntry && selectedAccount != null && selectedAccount!.balance < amount) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Insufficient balance. Available: ৳${selectedAccount!.balance.toStringAsFixed(2)}'),
+                      content: Text('Insufficient balance. Available: ${CurrencyUtils.formatCurrency(selectedAccount!.balance, selectedAccount!.currency)}'),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -948,7 +948,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                   
                   final message = isHistoricalEntry 
                     ? 'Historical loan entry added successfully!'
-                    : 'Loan created and ৳${amount.toStringAsFixed(2)} debited from ${selectedAccount!.name}';
+                    : 'Loan created and ${CurrencyUtils.formatCurrency(amount, selectedAccount!.currency)} debited from ${selectedAccount!.name}';
                     
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(message)),
@@ -991,10 +991,10 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                 TextField(
                   controller: amountController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Amount',
-                    border: OutlineInputBorder(),
-                    prefixText: '৳ ',
+                    border: const OutlineInputBorder(),
+                    prefixText: '${CurrencyUtils.getSymbol('BDT')} ',
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -1065,7 +1065,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> with TickerProviderSt
                         return DropdownMenuItem<Account>(
                           value: account,
                           child: Text(
-                            '${account.name} (৳${account.balance.toStringAsFixed(2)})',
+                            '${account.name} (${CurrencyUtils.formatCurrency(account.balance, account.currency)})',
                             overflow: TextOverflow.ellipsis,
                           ),
                         );

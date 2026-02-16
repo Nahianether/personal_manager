@@ -6,12 +6,14 @@ import '../providers/transaction_provider.dart';
 import '../providers/account_provider.dart';
 import '../providers/loan_provider.dart';
 import '../providers/liability_provider.dart';
+import '../providers/currency_provider.dart';
 import '../models/transaction.dart';
 import '../models/account.dart';
 import '../models/loan.dart';
 import '../models/liability.dart';
 import '../models/pdf_report_data.dart';
 import '../services/pdf_report_service.dart';
+import '../utils/currency_utils.dart';
 
 enum ReportPeriod { daily, weekly, monthly, yearly }
 
@@ -28,7 +30,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormatter = NumberFormat.currency(symbol: '৳', decimalDigits: 2);
+    final displayCurrency = ref.watch(currencyProvider).displayCurrency;
+    final currencyFormatter = CurrencyUtils.getFormatter(displayCurrency);
 
     return DefaultTabController(
       length: 4,
@@ -1213,6 +1216,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         incomesByCategory[cat] = (incomesByCategory[cat] ?? 0) + t.amount;
       }
 
+      final displayCurrency = ref.read(currencyProvider).displayCurrency;
+
       final reportData = PdfReportData(
         periodLabel: _formatSelectedDate(),
         periodType: _selectedPeriod.name[0].toUpperCase() +
@@ -1228,6 +1233,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         accounts: accountState.accounts,
         loans: loanState.loans,
         liabilities: liabilityState.liabilities,
+        displayCurrency: displayCurrency,
       );
 
       final success =

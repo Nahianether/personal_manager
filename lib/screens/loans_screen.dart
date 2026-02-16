@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../providers/loan_provider.dart';
+import '../utils/currency_utils.dart';
 import '../providers/account_provider.dart';
 import '../models/loan.dart';
 import '../models/account.dart';
@@ -16,11 +17,6 @@ class LoansScreen extends ConsumerStatefulWidget {
 class _LoansScreenState extends ConsumerState<LoansScreen> {
   @override
   Widget build(BuildContext context) {
-    final currencyFormatter = NumberFormat.currency(
-      symbol: '৳',
-      decimalDigits: 2,
-    );
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Loans'),
@@ -74,7 +70,7 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
                     loan.isReturned ? 'RETURNED' : 'OUTSTANDING',
                   ),
                   trailing: Text(
-                    currencyFormatter.format(loan.amount),
+                    CurrencyUtils.formatCurrency(loan.amount, loan.currency),
                     style: TextStyle(
                       color: loan.isReturned ? Colors.green : Colors.orange,
                       fontWeight: FontWeight.bold,
@@ -89,7 +85,7 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('Amount: ${currencyFormatter.format(loan.amount)}'),
+                              Text('Amount: ${CurrencyUtils.formatCurrency(loan.amount, loan.currency)}'),
                               Text('Loan Date: ${DateFormat('dd/MM/yyyy').format(loan.loanDate)}'),
                             ],
                           ),
@@ -238,7 +234,7 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
                                     children: [
                                       Text(account.name),
                                       Text(
-                                        'Balance: ৳${account.balance.toStringAsFixed(2)}',
+                                        'Balance: ${CurrencyUtils.formatCurrency(account.balance, account.currency)}',
                                         style: Theme.of(context).textTheme.bodySmall,
                                       ),
                                     ],
@@ -258,7 +254,7 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
                   ),
                   const SizedBox(height: 16),
                 ],
-                
+
                 ListTile(
                   title: const Text('Return Date'),
                   subtitle: Text(DateFormat('dd/MM/yyyy').format(returnDate)),
@@ -304,7 +300,7 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
                 
                 final message = loan.isHistoricalEntry 
                   ? 'Historical loan marked as returned!'
-                  : 'Loan returned and ৳${loan.amount.toStringAsFixed(2)} credited to ${selectedAccount!.name}';
+                  : 'Loan returned and ${CurrencyUtils.formatCurrency(loan.amount, loan.currency)} credited to ${selectedAccount!.name}';
                   
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(message)),
@@ -346,10 +342,10 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
                 TextField(
                   controller: amountController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Loan Amount',
-                    border: OutlineInputBorder(),
-                    prefixText: '৳ ',
+                    border: const OutlineInputBorder(),
+                    prefixText: '${CurrencyUtils.getSymbol(selectedAccount?.currency ?? 'BDT')} ',
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -416,7 +412,7 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
                                     children: [
                                       Text(account.name),
                                       Text(
-                                        'Balance: ৳${account.balance.toStringAsFixed(2)}',
+                                        'Balance: ${CurrencyUtils.formatCurrency(account.balance, account.currency)}',
                                         style: Theme.of(context).textTheme.bodySmall,
                                       ),
                                     ],
@@ -510,7 +506,7 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
                 if (!isHistoricalEntry && selectedAccount != null && selectedAccount!.balance < amount) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Insufficient balance. Available: ৳${selectedAccount!.balance.toStringAsFixed(2)}'),
+                      content: Text('Insufficient balance. Available: ${CurrencyUtils.formatCurrency(selectedAccount!.balance, selectedAccount!.currency)}'),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -529,7 +525,7 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
                 
                 final message = isHistoricalEntry 
                   ? 'Historical loan entry added successfully!'
-                  : 'Loan created and ৳${amount.toStringAsFixed(2)} debited from ${selectedAccount!.name}';
+                  : 'Loan created and ${CurrencyUtils.formatCurrency(amount, selectedAccount!.currency)} debited from ${selectedAccount!.name}';
                   
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(message)),

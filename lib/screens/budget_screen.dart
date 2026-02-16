@@ -5,6 +5,8 @@ import '../models/budget.dart';
 import '../models/transaction.dart';
 import '../providers/budget_provider.dart';
 import '../providers/transaction_provider.dart';
+import '../providers/currency_provider.dart';
+import '../utils/currency_utils.dart';
 
 class BudgetScreen extends ConsumerWidget {
   const BudgetScreen({super.key});
@@ -18,7 +20,8 @@ class BudgetScreen extends ConsumerWidget {
     // Sort by percentage descending (highest usage first)
     statuses.sort((a, b) => b.percentage.compareTo(a.percentage));
 
-    final currencyFormatter = NumberFormat.currency(symbol: '\u09F3', decimalDigits: 0);
+    final displayCurrency = ref.watch(currencyProvider).displayCurrency;
+    final currencyFormatter = CurrencyUtils.getFormatter(displayCurrency);
 
     return Scaffold(
       appBar: AppBar(
@@ -348,10 +351,10 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
           TextField(
             controller: _amountController,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              border: const OutlineInputBorder(),
               labelText: 'Budget Amount',
-              prefixText: '\u09F3 ',
+              prefixText: '${CurrencyUtils.getSymbol(ref.watch(currencyProvider).displayCurrency)} ',
             ),
           ),
           const SizedBox(height: 16),

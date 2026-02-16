@@ -22,6 +22,8 @@ class PdfReportData {
   final List<Loan> loans;
   final List<Liability> liabilities;
 
+  final String displayCurrency;
+
   PdfReportData({
     required this.periodLabel,
     required this.periodType,
@@ -36,5 +38,6 @@ class PdfReportData {
     required this.accounts,
     required this.loans,
     required this.liabilities,
+    this.displayCurrency = 'BDT',
   });
 }

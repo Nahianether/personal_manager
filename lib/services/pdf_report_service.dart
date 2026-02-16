@@ -6,17 +6,18 @@ import 'package:intl/intl.dart';
 import '../models/pdf_report_data.dart';
 import '../models/transaction.dart';
 import '../models/account.dart';
+import '../utils/currency_utils.dart';
 
 class PdfReportService {
   static final PdfReportService _instance = PdfReportService._internal();
   factory PdfReportService() => _instance;
   PdfReportService._internal();
 
-  final _currencyFormatter =
-      NumberFormat.currency(symbol: 'BDT ', decimalDigits: 2);
+  late NumberFormat _currencyFormatter;
 
   Future<bool> generateAndShareReport(PdfReportData data) async {
     try {
+      _currencyFormatter = CurrencyUtils.getFormatter(data.displayCurrency);
       final pdfBytes = await _buildPdf(data);
       final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
 

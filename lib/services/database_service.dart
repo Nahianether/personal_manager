@@ -68,7 +68,7 @@ class DatabaseService {
     try {
       final db = await openDatabase(
         path,
-        version: 10,
+        version: 11,
         onCreate: _createTables,
         onUpgrade: _upgradeDatabase,
       );
@@ -99,7 +99,7 @@ class DatabaseService {
           // Create a fresh database
           final db = await openDatabase(
             path,
-            version: 10,
+            version: 11,
             onCreate: _createTables,
             onUpgrade: _upgradeDatabase,
           );
@@ -237,6 +237,7 @@ class DatabaseService {
         user_id TEXT NOT NULL,
         category TEXT NOT NULL,
         amount REAL NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'BDT',
         period TEXT NOT NULL DEFAULT 'monthly',
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
@@ -392,6 +393,7 @@ class DatabaseService {
           user_id TEXT NOT NULL,
           category TEXT NOT NULL,
           amount REAL NOT NULL,
+          currency TEXT NOT NULL DEFAULT 'BDT',
           period TEXT NOT NULL DEFAULT 'monthly',
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
@@ -423,6 +425,12 @@ class DatabaseService {
           last_synced_at TEXT
         )
       ''');
+    }
+
+    if (oldVersion < 11) {
+      await db.execute(
+        "ALTER TABLE budgets ADD COLUMN currency TEXT NOT NULL DEFAULT 'BDT'"
+      );
     }
   }
 
@@ -941,6 +949,7 @@ class DatabaseService {
         'id': maps[i]['id'],
         'category': maps[i]['category'],
         'amount': maps[i]['amount'],
+        'currency': maps[i]['currency'] ?? 'BDT',
         'period': maps[i]['period'],
         'createdAt': maps[i]['created_at'],
         'updatedAt': maps[i]['updated_at'],
@@ -959,6 +968,7 @@ class DatabaseService {
         'user_id': userId ?? '',
         'category': budget.category,
         'amount': budget.amount,
+        'currency': budget.currency,
         'period': budget.period.toString().split('.').last,
         'created_at': budget.createdAt.toIso8601String(),
         'updated_at': budget.updatedAt.toIso8601String(),
@@ -979,6 +989,7 @@ class DatabaseService {
       {
         'category': budget.category,
         'amount': budget.amount,
+        'currency': budget.currency,
         'period': budget.period.toString().split('.').last,
         'updated_at': budget.updatedAt.toIso8601String(),
         'sync_status': 'pending',
@@ -1298,7 +1309,6 @@ class DatabaseService {
   }
   
   Future<void> clearAllUserData() async {
-    final db = await database;
     final userId = await _getCurrentUserId();
     
     if (userId != null) {
@@ -1332,20 +1342,24 @@ class DatabaseService {
   // Export all data to a structured map for Excel export
   Future<Map<String, List<Map<String, dynamic>>>> exportAllData() async {
     final db = await database;
-    
+
     // Get all data from all tables
     final accounts = await db.query('accounts');
     final transactions = await db.query('transactions');
     final loans = await db.query('loans');
     final liabilities = await db.query('liabilities');
     final categories = await db.query('categories');
-    
+    final budgets = await db.query('budgets');
+    final recurringTransactions = await db.query('recurring_transactions');
+
     return {
       'Accounts': accounts,
       'Transactions': transactions,
       'Loans': loans,
       'Liabilities': liabilities,
       'Categories': categories,
+      'Budgets': budgets,
+      'RecurringTransactions': recurringTransactions,
     };
   }
 
@@ -1395,6 +1409,73 @@ class DatabaseService {
           if (category['is_default'] == 0) {
             await txn.insert('categories', category, conflictAlgorithm: ConflictAlgorithm.replace);
           }
+        }
+      }
+    });
+  }
+
+  // Import all data including budgets and recurring transactions (for JSON backup restore)
+  Future<void> importAllDataV2(Map<String, List<Map<String, dynamic>>> data) async {
+    final db = await database;
+
+    await db.transaction((txn) async {
+      // Clear existing data first (order matters for foreign keys)
+      await txn.delete('recurring_transactions');
+      await txn.delete('budgets');
+      await txn.delete('transactions');
+      await txn.delete('loans');
+      await txn.delete('liabilities');
+      await txn.delete('accounts');
+      await txn.delete('categories', where: 'is_default = 0');
+
+      // Import accounts
+      if (data['Accounts'] != null) {
+        for (final row in data['Accounts']!) {
+          await txn.insert('accounts', row, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      }
+
+      // Import transactions
+      if (data['Transactions'] != null) {
+        for (final row in data['Transactions']!) {
+          await txn.insert('transactions', row, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      }
+
+      // Import loans
+      if (data['Loans'] != null) {
+        for (final row in data['Loans']!) {
+          await txn.insert('loans', row, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      }
+
+      // Import liabilities
+      if (data['Liabilities'] != null) {
+        for (final row in data['Liabilities']!) {
+          await txn.insert('liabilities', row, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      }
+
+      // Import custom categories only
+      if (data['Categories'] != null) {
+        for (final row in data['Categories']!) {
+          if (row['is_default'] == 0) {
+            await txn.insert('categories', row, conflictAlgorithm: ConflictAlgorithm.replace);
+          }
+        }
+      }
+
+      // Import budgets
+      if (data['Budgets'] != null) {
+        for (final row in data['Budgets']!) {
+          await txn.insert('budgets', row, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      }
+
+      // Import recurring transactions
+      if (data['RecurringTransactions'] != null) {
+        for (final row in data['RecurringTransactions']!) {
+          await txn.insert('recurring_transactions', row, conflictAlgorithm: ConflictAlgorithm.replace);
         }
       }
     });

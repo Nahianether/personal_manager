@@ -4,6 +4,7 @@ class Budget {
   final String id;
   final String category;
   final double amount;
+  final String currency;
   final BudgetPeriod period;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -12,6 +13,7 @@ class Budget {
     required this.id,
     required this.category,
     required this.amount,
+    this.currency = 'BDT',
     this.period = BudgetPeriod.monthly,
     required this.createdAt,
     required this.updatedAt,
@@ -22,6 +24,7 @@ class Budget {
       id: json['id'],
       category: json['category'],
       amount: (json['amount'] as num).toDouble(),
+      currency: json['currency'] ?? 'BDT',
       period: BudgetPeriod.values.firstWhere(
         (e) => e.toString().split('.').last == json['period'],
         orElse: () => BudgetPeriod.monthly,
@@ -36,6 +39,7 @@ class Budget {
       'id': id,
       'category': category,
       'amount': amount,
+      'currency': currency,
       'period': period.toString().split('.').last,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -46,6 +50,7 @@ class Budget {
     String? id,
     String? category,
     double? amount,
+    String? currency,
     BudgetPeriod? period,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -54,6 +59,7 @@ class Budget {
       id: id ?? this.id,
       category: category ?? this.category,
       amount: amount ?? this.amount,
+      currency: currency ?? this.currency,
       period: period ?? this.period,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

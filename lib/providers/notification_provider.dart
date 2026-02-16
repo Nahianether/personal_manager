@@ -4,6 +4,7 @@ import '../models/app_notification.dart';
 import '../models/liability.dart';
 import '../models/loan.dart';
 import '../models/budget.dart';
+import '../utils/currency_utils.dart';
 
 class NotificationState {
   final List<AppNotification> notifications;
@@ -43,7 +44,6 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
 
     final notifications = <AppNotification>[];
     final now = DateTime.now();
-    final currencyFormatter = NumberFormat.currency(symbol: '৳', decimalDigits: 0);
     int idCounter = 0;
 
     // 1. Overdue liabilities (CRITICAL)
@@ -57,7 +57,7 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
           type: NotificationType.liabilityOverdue,
           title: 'Overdue: ${liability.personName}',
           message:
-              '${currencyFormatter.format(liability.amount)} to ${liability.personName} was due ${DateFormat('MMM d').format(liability.dueDate)} ($daysOverdue days ago)',
+              '${CurrencyUtils.formatCurrency(liability.amount, liability.currency)} to ${liability.personName} was due ${DateFormat('MMM d').format(liability.dueDate)} ($daysOverdue days ago)',
           severity: NotificationSeverity.critical,
           createdAt: now,
         ));
@@ -73,7 +73,7 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
           type: NotificationType.liabilityDue,
           title: 'Due Soon: ${liability.personName}',
           message:
-              '${currencyFormatter.format(liability.amount)} to ${liability.personName} due $daysText',
+              '${CurrencyUtils.formatCurrency(liability.amount, liability.currency)} to ${liability.personName} due $daysText',
           severity: NotificationSeverity.warning,
           createdAt: now,
         ));
@@ -84,7 +84,7 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
           type: NotificationType.liabilityDue,
           title: 'Upcoming: ${liability.personName}',
           message:
-              '${currencyFormatter.format(liability.amount)} to ${liability.personName} due in ${liability.daysUntilDue} days',
+              '${CurrencyUtils.formatCurrency(liability.amount, liability.currency)} to ${liability.personName} due in ${liability.daysUntilDue} days',
           severity: NotificationSeverity.info,
           createdAt: now,
         ));
@@ -99,7 +99,7 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
           type: NotificationType.budgetExceeded,
           title: 'Budget Exceeded: ${status.budget.category}',
           message:
-              'Spent ${currencyFormatter.format(status.spent)} of ${currencyFormatter.format(status.budget.amount)} ${status.budget.period.name} budget (${status.percentage.toStringAsFixed(0)}%)',
+              'Spent ${CurrencyUtils.formatCurrency(status.spent, status.budget.currency)} of ${CurrencyUtils.formatCurrency(status.budget.amount, status.budget.currency)} ${status.budget.period.name} budget (${status.percentage.toStringAsFixed(0)}%)',
           severity: NotificationSeverity.critical,
           createdAt: now,
         ));
@@ -110,7 +110,7 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
           type: NotificationType.budgetWarning,
           title: 'Budget Alert: ${status.budget.category}',
           message:
-              'Spent ${currencyFormatter.format(status.spent)} of ${currencyFormatter.format(status.budget.amount)} (${status.percentage.toStringAsFixed(0)}%)',
+              'Spent ${CurrencyUtils.formatCurrency(status.spent, status.budget.currency)} of ${CurrencyUtils.formatCurrency(status.budget.amount, status.budget.currency)} (${status.percentage.toStringAsFixed(0)}%)',
           severity: NotificationSeverity.warning,
           createdAt: now,
         ));
@@ -128,7 +128,7 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
           type: NotificationType.loanReminder,
           title: 'Loan Reminder: ${loan.personName}',
           message:
-              '${currencyFormatter.format(loan.amount)} lent $daysSinceLoan days ago',
+              '${CurrencyUtils.formatCurrency(loan.amount, loan.currency)} lent $daysSinceLoan days ago',
           severity: NotificationSeverity.warning,
           createdAt: now,
         ));

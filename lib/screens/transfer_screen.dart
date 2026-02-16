@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../providers/transaction_provider.dart';
 import '../providers/account_provider.dart';
 import '../models/account.dart';
+import '../utils/currency_utils.dart';
 import 'transfer_history_screen.dart';
 
 class TransferScreen extends ConsumerStatefulWidget {
@@ -30,7 +31,11 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
   @override
   Widget build(BuildContext context) {
     final accountState = ref.watch(accountProvider);
-    final currencyFormatter = NumberFormat.currency(symbol: '৳', decimalDigits: 2);
+    final fromAccount = _fromAccountId != null
+        ? accountState.accounts.where((a) => a.id == _fromAccountId).firstOrNull
+        : null;
+    final currencyCode = fromAccount?.currency ?? 'BDT';
+    final currencyFormatter = CurrencyUtils.getFormatter(currencyCode);
 
     return Scaffold(
       appBar: AppBar(
@@ -251,11 +256,11 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
                     TextField(
                       controller: _amountController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
                         labelText: 'Amount to transfer',
-                        prefixText: '৳ ',
-                        prefixIcon: Icon(Icons.currency_exchange),
+                        prefixText: '${CurrencyUtils.getSymbol(currencyCode)} ',
+                        prefixIcon: const Icon(Icons.currency_exchange),
                       ),
                       onChanged: (value) {
                         setState(() {}); // Trigger rebuild to update validation
@@ -510,7 +515,7 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Transfer ${NumberFormat.currency(symbol: '৳', decimalDigits: 2).format(amount)}'),
+            Text('Transfer ${CurrencyUtils.formatCurrency(amount, fromAccount.currency)}'),
             const SizedBox(height: 8),
             Text('From: ${fromAccount.name}'),
             Text('To: ${toAccount.name}'),
@@ -543,7 +548,7 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
               
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Transfer of ${NumberFormat.currency(symbol: '৳', decimalDigits: 2).format(amount)} completed successfully!'),
+                  content: Text('Transfer of ${CurrencyUtils.formatCurrency(amount, fromAccount.currency)} completed successfully!'),
                   backgroundColor: Colors.green,
                   duration: const Duration(seconds: 3),
                 ),

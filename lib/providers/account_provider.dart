@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../models/account.dart';
 import '../services/database_service.dart';
+import 'currency_provider.dart';
 
 class AccountState {
   final List<Account> accounts;
@@ -29,13 +30,23 @@ class AccountState {
   double get totalBalance {
     return accounts.fold(0.0, (sum, account) {
       if (account.isCreditCard && account.creditLimit != null) {
-        // For credit cards, add available credit (limit - spent amount)
         final availableCredit = account.creditLimit! - account.balance;
         return sum + availableCredit;
       } else {
-        // For regular accounts, add the balance
         return sum + account.balance;
       }
+    });
+  }
+
+  double convertedTotalBalance(CurrencyState currencyState) {
+    return accounts.fold(0.0, (sum, account) {
+      double balance;
+      if (account.isCreditCard && account.creditLimit != null) {
+        balance = account.creditLimit! - account.balance;
+      } else {
+        balance = account.balance;
+      }
+      return sum + currencyState.convertToDisplay(balance, account.currency);
     });
   }
 }

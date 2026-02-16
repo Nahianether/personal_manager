@@ -5,6 +5,7 @@ import '../models/recurring_transaction.dart';
 import '../models/transaction.dart';
 import '../providers/recurring_transaction_provider.dart';
 import '../providers/account_provider.dart';
+import '../utils/currency_utils.dart';
 
 class RecurringTransactionsScreen extends ConsumerWidget {
   const RecurringTransactionsScreen({super.key});
@@ -13,8 +14,6 @@ class RecurringTransactionsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final rtState = ref.watch(recurringTransactionProvider);
     final accountState = ref.watch(accountProvider);
-    final currencyFormatter = NumberFormat.currency(symbol: '\u09F3', decimalDigits: 0);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Recurring Transactions'),
@@ -36,7 +35,7 @@ class RecurringTransactionsScreen extends ConsumerWidget {
                       ref,
                       rt,
                       account?.name ?? 'Unknown',
-                      currencyFormatter,
+                      CurrencyUtils.getFormatter(rt.currency),
                     );
                   },
                 ),
@@ -376,10 +375,10 @@ class _RecurringFormSheetState extends ConsumerState<_RecurringFormSheet> {
             TextField(
               controller: _amountController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
                 labelText: 'Amount',
-                prefixText: '\u09F3 ',
+                prefixText: '${CurrencyUtils.getSymbol(_selectedAccountId != null ? (accountState.accounts.where((a) => a.id == _selectedAccountId).firstOrNull?.currency ?? 'BDT') : 'BDT')} ',
               ),
             ),
             const SizedBox(height: 16),
