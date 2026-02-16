@@ -1,0 +1,52 @@
+   0.270605791s  INFO prepare_target{force=false package_id=personal_manager_backend v0.1.0 (/Users/intishar/Documents/personal/personal_manager/backend) target="personal_manager_backend"}: cargo::core::compiler::fingerprint: fingerprint error for personal_manager_backend v0.1.0 (/Users/intishar/Documents/personal/personal_manager/backend)/Check { test: false }/TargetInner { name: "personal_manager_backend", doc: true, ..: with_path("/Users/intishar/Documents/personal/personal_manager/backend/src/main.rs", Edition2021) }
+   0.270642333s  INFO prepare_target{force=false package_id=personal_manager_backend v0.1.0 (/Users/intishar/Documents/personal/personal_manager/backend) target="personal_manager_backend"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/intishar/Documents/personal/personal_manager/backend/target/debug/.fingerprint/personal_manager_backend-f258c709c4eacb18/bin-personal_manager_backend`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: cargo_util::paths::read_bytes
+   2: cargo_util::paths::read
+   3: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   4: cargo::core::compiler::fingerprint::prepare_target
+   5: cargo::core::compiler::compile
+   6: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   7: cargo::ops::cargo_compile::compile_ws
+   8: cargo::ops::cargo_compile::compile_with_exec
+   9: cargo::ops::cargo_compile::compile
+  10: cargo::commands::check::exec
+  11: <cargo::cli::Exec>::exec
+  12: cargo::main
+  13: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  14: std::rt::lang_start::<()>::{closure#0}
+  15: std::rt::lang_start_internal
+  16: _main
+   0.335035416s  INFO prepare_target{force=false package_id=personal_manager_backend v0.1.0 (/Users/intishar/Documents/personal/personal_manager/backend) target="personal_manager_backend"}: cargo::core::compiler::fingerprint: fingerprint error for personal_manager_backend v0.1.0 (/Users/intishar/Documents/personal/personal_manager/backend)/Check { test: true }/TargetInner { name: "personal_manager_backend", doc: true, ..: with_path("/Users/intishar/Documents/personal/personal_manager/backend/src/main.rs", Edition2021) }
+   0.335050166s  INFO prepare_target{force=false package_id=personal_manager_backend v0.1.0 (/Users/intishar/Documents/personal/personal_manager/backend) target="personal_manager_backend"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/intishar/Documents/personal/personal_manager/backend/target/debug/.fingerprint/personal_manager_backend-e4c6b35e284bedf7/test-bin-personal_manager_backend`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: cargo_util::paths::read_bytes
+   2: cargo_util::paths::read
+   3: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   4: cargo::core::compiler::fingerprint::prepare_target
+   5: cargo::core::compiler::compile
+   6: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   7: cargo::ops::cargo_compile::compile_ws
+   8: cargo::ops::cargo_compile::compile_with_exec
+   9: cargo::ops::cargo_compile::compile
+  10: cargo::commands::check::exec
+  11: <cargo::cli::Exec>::exec
+  12: cargo::main
+  13: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  14: std::rt::lang_start::<()>::{closure#0}
+  15: std::rt::lang_start_internal
+  16: _main
+    Checking personal_manager_backend v0.1.0 (/Users/intishar/Documents/personal/personal_manager/backend)
+error: could not compile `personal_manager_backend` (bin "personal_manager_backend") due to 12 previous errors; 7 warnings emitted
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `personal_manager_backend` (bin "personal_manager_backend" test) due to 12 previous errors; 7 warnings emitted
