@@ -10,6 +10,8 @@ import '../models/transaction.dart';
 import '../models/account.dart';
 import '../models/loan.dart';
 import '../models/liability.dart';
+import '../models/pdf_report_data.dart';
+import '../services/pdf_report_service.dart';
 
 enum ReportPeriod { daily, weekly, monthly, yearly }
 
@@ -34,6 +36,13 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         appBar: AppBar(
           title: const Text('Financial Reports'),
           centerTitle: true,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.picture_as_pdf_rounded),
+              tooltip: 'Export PDF Report',
+              onPressed: () => _exportPdfReport(context),
+            ),
+          ],
           bottom: const TabBar(
             tabs: [
               Tab(icon: Icon(Icons.bar_chart), text: 'Overview'),
@@ -1157,6 +1166,96 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _exportPdfReport(BuildContext context) async {
+    if (!context.mounted) return;
+
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Generating PDF report...'),
+            ],
+          ),
+        ),
+      );
+
+      final transactionState = ref.read(transactionProvider);
+      final accountState = ref.read(accountProvider);
+      final loanState = ref.read(loanProvider);
+      final liabilityState = ref.read(liabilityProvider);
+
+      final filteredTransactions =
+          _getFilteredTransactions(transactionState.transactions);
+      final overviewData = _calculateOverviewData(
+        filteredTransactions,
+        accountState,
+        loanState,
+        liabilityState,
+      );
+
+      final expensesByCategory = <String, double>{};
+      for (final t in filteredTransactions
+          .where((t) => t.type == TransactionType.expense)) {
+        final cat = t.category ?? 'Other';
+        expensesByCategory[cat] = (expensesByCategory[cat] ?? 0) + t.amount;
+      }
+      final incomesByCategory = <String, double>{};
+      for (final t in filteredTransactions
+          .where((t) => t.type == TransactionType.income)) {
+        final cat = t.category ?? 'Other';
+        incomesByCategory[cat] = (incomesByCategory[cat] ?? 0) + t.amount;
+      }
+
+      final reportData = PdfReportData(
+        periodLabel: _formatSelectedDate(),
+        periodType: _selectedPeriod.name[0].toUpperCase() +
+            _selectedPeriod.name.substring(1),
+        generatedAt: DateTime.now(),
+        totalIncome: overviewData['totalIncome'],
+        totalExpense: overviewData['totalExpense'],
+        netBalance: overviewData['netBalance'],
+        totalAssets: overviewData['totalAssets'],
+        expensesByCategory: expensesByCategory,
+        incomesByCategory: incomesByCategory,
+        transactions: filteredTransactions,
+        accounts: accountState.accounts,
+        loans: loanState.loans,
+        liabilities: liabilityState.liabilities,
+      );
+
+      final success =
+          await PdfReportService().generateAndShareReport(reportData);
+
+      if (context.mounted) {
+        Navigator.pop(context);
+
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('PDF report generated successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error generating PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   List<Transaction> _getFilteredTransactions(List<Transaction> transactions) {
