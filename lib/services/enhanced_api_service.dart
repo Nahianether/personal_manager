@@ -4,6 +4,10 @@ import '../models/account.dart';
 import '../models/transaction.dart' as transaction_model;
 import '../models/loan.dart';
 import '../models/liability.dart';
+import '../models/budget.dart';
+import '../models/category.dart';
+import '../models/savings_goal.dart';
+import '../models/recurring_transaction.dart';
 import 'database_service.dart';
 import 'auth_service.dart';
 
@@ -122,6 +126,71 @@ class EnhancedApiService {
       'is_historical_entry': liability.isHistoricalEntry, // snake_case for backend
       'account_id': liability.accountId, // snake_case for backend
       'transaction_id': liability.transactionId, // snake_case for backend
+    };
+  }
+
+  /// Validates and sanitizes budget data before sending to API
+  Map<String, dynamic> _sanitizeBudgetData(Budget budget) {
+    return {
+      'id': budget.id,
+      'category': budget.category.trim(),
+      'amount': budget.amount,
+      'currency': budget.currency,
+      'period': budget.period.toString().split('.').last,
+      'created_at': budget.createdAt.toUtc().toIso8601String(),
+      'updated_at': budget.updatedAt.toUtc().toIso8601String(),
+    };
+  }
+
+  /// Validates and sanitizes category data before sending to API
+  Map<String, dynamic> _sanitizeCategoryData(Category category) {
+    return {
+      'id': category.id,
+      'name': category.name.trim(),
+      'type': category.type.toString().split('.').last,
+      'icon_code_point': category.icon.codePoint,
+      'color_value': category.color.toARGB32(),
+      'is_default': category.isDefault,
+      'created_at': category.createdAt.toUtc().toIso8601String(),
+    };
+  }
+
+  /// Validates and sanitizes savings goal data before sending to API
+  Map<String, dynamic> _sanitizeSavingsGoalData(SavingsGoal goal) {
+    return {
+      'id': goal.id,
+      'name': goal.name.trim(),
+      'target_amount': goal.targetAmount,
+      'current_amount': goal.currentAmount,
+      'currency': goal.currency,
+      'target_date': goal.targetDate.toUtc().toIso8601String(),
+      'description': goal.description?.trim(),
+      'account_id': goal.accountId,
+      'priority': goal.priority,
+      'is_completed': goal.isCompleted,
+      'created_at': goal.createdAt.toUtc().toIso8601String(),
+      'updated_at': goal.updatedAt.toUtc().toIso8601String(),
+    };
+  }
+
+  /// Validates and sanitizes recurring transaction data before sending to API
+  Map<String, dynamic> _sanitizeRecurringTransactionData(RecurringTransaction rt) {
+    return {
+      'id': rt.id,
+      'account_id': rt.accountId,
+      'transaction_type': rt.type.toString().split('.').last,
+      'amount': rt.amount,
+      'currency': rt.currency,
+      'category': rt.category?.trim(),
+      'description': rt.description?.trim(),
+      'frequency': rt.frequency.toString().split('.').last,
+      'start_date': rt.startDate.toUtc().toIso8601String(),
+      'end_date': rt.endDate?.toUtc().toIso8601String(),
+      'next_due_date': rt.nextDueDate.toUtc().toIso8601String(),
+      'is_active': rt.isActive,
+      'savings_goal_id': rt.savingsGoalId,
+      'created_at': rt.createdAt.toUtc().toIso8601String(),
+      'updated_at': rt.updatedAt.toUtc().toIso8601String(),
     };
   }
 
@@ -373,6 +442,143 @@ class EnhancedApiService {
     }
   }
 
+  /// Budget API endpoints
+  Future<bool> syncBudget(Budget budget) async {
+    try {
+      final data = _sanitizeBudgetData(budget);
+      print('📤 BUDGET SYNC: ${budget.category} - ${budget.amount} ${budget.currency}');
+      final response = await _dio.post('/budgets', data: data);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print('✅ Budget synced successfully');
+        return true;
+      }
+      return false;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 409) {
+        return await updateBudget(budget);
+      }
+      print('❌ Budget sync failed: ${e.response?.statusCode} - ${e.message}');
+      return false;
+    } catch (e) {
+      print('❌ Unexpected error syncing budget: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateBudget(Budget budget) async {
+    try {
+      final data = _sanitizeBudgetData(budget);
+      final response = await _dio.put('/budgets/${budget.id}', data: data);
+      return response.statusCode == 200;
+    } catch (e) {
+      print('❌ Budget update failed: $e');
+      return false;
+    }
+  }
+
+  /// Category API endpoints
+  Future<bool> syncCategory(Category category) async {
+    try {
+      final data = _sanitizeCategoryData(category);
+      print('📤 CATEGORY SYNC: ${category.name}');
+      final response = await _dio.post('/categories', data: data);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print('✅ Category synced successfully');
+        return true;
+      }
+      return false;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 409) {
+        return await updateCategory(category);
+      }
+      print('❌ Category sync failed: ${e.response?.statusCode} - ${e.message}');
+      return false;
+    } catch (e) {
+      print('❌ Unexpected error syncing category: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateCategory(Category category) async {
+    try {
+      final data = _sanitizeCategoryData(category);
+      final response = await _dio.put('/categories/${category.id}', data: data);
+      return response.statusCode == 200;
+    } catch (e) {
+      print('❌ Category update failed: $e');
+      return false;
+    }
+  }
+
+  /// Savings Goal API endpoints
+  Future<bool> syncSavingsGoal(SavingsGoal goal) async {
+    try {
+      final data = _sanitizeSavingsGoalData(goal);
+      print('📤 SAVINGS GOAL SYNC: ${goal.name} - ${goal.targetAmount} ${goal.currency}');
+      final response = await _dio.post('/savings_goals', data: data);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print('✅ Savings goal synced successfully');
+        return true;
+      }
+      return false;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 409) {
+        return await updateSavingsGoal(goal);
+      }
+      print('❌ Savings goal sync failed: ${e.response?.statusCode} - ${e.message}');
+      return false;
+    } catch (e) {
+      print('❌ Unexpected error syncing savings goal: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateSavingsGoal(SavingsGoal goal) async {
+    try {
+      final data = _sanitizeSavingsGoalData(goal);
+      final response = await _dio.put('/savings_goals/${goal.id}', data: data);
+      return response.statusCode == 200;
+    } catch (e) {
+      print('❌ Savings goal update failed: $e');
+      return false;
+    }
+  }
+
+  /// Recurring Transaction API endpoints
+  Future<bool> syncRecurringTransaction(RecurringTransaction rt) async {
+    try {
+      await ensureAccountExistsOnServer(rt.accountId);
+      final data = _sanitizeRecurringTransactionData(rt);
+      print('📤 RECURRING TXN SYNC: ${rt.category ?? 'N/A'} - ${rt.amount} ${rt.currency}');
+      final response = await _dio.post('/recurring_transactions', data: data);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print('✅ Recurring transaction synced successfully');
+        return true;
+      }
+      return false;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 409) {
+        return await updateRecurringTransaction(rt);
+      }
+      print('❌ Recurring transaction sync failed: ${e.response?.statusCode} - ${e.message}');
+      return false;
+    } catch (e) {
+      print('❌ Unexpected error syncing recurring transaction: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateRecurringTransaction(RecurringTransaction rt) async {
+    try {
+      final data = _sanitizeRecurringTransactionData(rt);
+      final response = await _dio.put('/recurring_transactions/${rt.id}', data: data);
+      return response.statusCode == 200;
+    } catch (e) {
+      print('❌ Recurring transaction update failed: $e');
+      return false;
+    }
+  }
+
   /// Enhanced batch sync with dependency ordering
   Future<bool> batchSyncAll({
     List<Account>? accounts,
@@ -502,6 +708,73 @@ class EnhancedApiService {
     };
   }
 
+  /// Convert server snake_case budget response to Flutter camelCase
+  Map<String, dynamic> _convertBudgetFromServer(Map<String, dynamic> data) {
+    return {
+      'id': data['id']?.toString(),
+      'category': data['category'],
+      'amount': data['amount'],
+      'currency': data['currency'] ?? 'BDT',
+      'period': data['period'] ?? 'monthly',
+      'createdAt': data['created_at'] ?? data['createdAt'],
+      'updatedAt': data['updated_at'] ?? data['updatedAt'],
+    };
+  }
+
+  /// Convert server snake_case category response to Flutter camelCase
+  Map<String, dynamic> _convertCategoryFromServer(Map<String, dynamic> data) {
+    return {
+      'id': data['id']?.toString(),
+      'name': data['name'],
+      'type': data['category_type'] ?? data['type'],
+      'iconCodePoint': data['icon_code_point'] ?? data['iconCodePoint'] ?? 0xe1a0,
+      'colorValue': data['color_value'] ?? data['colorValue'] ?? 0xFF9E9E9E,
+      'isDefault': data['is_default'] ?? data['isDefault'] ?? false,
+      'createdAt': data['created_at'] ?? data['createdAt'],
+      'updatedAt': data['updated_at'] ?? data['updatedAt'],
+    };
+  }
+
+  /// Convert server snake_case savings goal response to Flutter camelCase
+  Map<String, dynamic> _convertSavingsGoalFromServer(Map<String, dynamic> data) {
+    return {
+      'id': data['id']?.toString(),
+      'name': data['name'],
+      'targetAmount': data['target_amount'] ?? data['targetAmount'],
+      'currentAmount': data['current_amount'] ?? data['currentAmount'] ?? 0.0,
+      'currency': data['currency'] ?? 'BDT',
+      'targetDate': data['target_date'] ?? data['targetDate'],
+      'description': data['description'],
+      'accountId': data['account_id'] ?? data['accountId'],
+      'priority': data['priority'] ?? 'medium',
+      'isCompleted': data['is_completed'] ?? data['isCompleted'] ?? false,
+      'createdAt': data['created_at'] ?? data['createdAt'],
+      'updatedAt': data['updated_at'] ?? data['updatedAt'],
+    };
+  }
+
+  /// Convert server snake_case recurring transaction response to Flutter camelCase
+  Map<String, dynamic> _convertRecurringTransactionFromServer(Map<String, dynamic> data) {
+    return {
+      'id': data['id']?.toString(),
+      'accountId': data['account_id'] ?? data['accountId'],
+      'transactionType': data['transaction_type'] ?? data['transactionType'] ?? data['type'],
+      'type': data['transaction_type'] ?? data['type'],
+      'amount': data['amount'],
+      'currency': data['currency'] ?? 'BDT',
+      'category': data['category'],
+      'description': data['description'],
+      'frequency': data['frequency'] ?? 'monthly',
+      'startDate': data['start_date'] ?? data['startDate'],
+      'endDate': data['end_date'] ?? data['endDate'],
+      'nextDueDate': data['next_due_date'] ?? data['nextDueDate'],
+      'isActive': data['is_active'] ?? data['isActive'] ?? true,
+      'savingsGoalId': data['savings_goal_id'] ?? data['savingsGoalId'],
+      'createdAt': data['created_at'] ?? data['createdAt'],
+      'updatedAt': data['updated_at'] ?? data['updatedAt'],
+    };
+  }
+
   /// Parse response body that could be a list or wrapped in a key
   List<Map<String, dynamic>> _parseListResponse(dynamic responseData, String key) {
     if (responseData is List) {
@@ -590,6 +863,78 @@ class EnhancedApiService {
     }
   }
 
+  /// Fetch all budgets from server
+  Future<List<Map<String, dynamic>>> fetchBudgets() async {
+    try {
+      print('📥 Fetching budgets from server...');
+      final response = await _dio.get('/api/budgets');
+      if (response.statusCode == 200 && response.data != null) {
+        final items = _parseListResponse(response.data, 'budgets');
+        final converted = items.map((item) => _convertBudgetFromServer(item)).toList();
+        print('✅ Fetched ${converted.length} budgets from server');
+        return converted;
+      }
+      return [];
+    } catch (e) {
+      print('❌ Error fetching budgets from server: $e');
+      return [];
+    }
+  }
+
+  /// Fetch all categories from server
+  Future<List<Map<String, dynamic>>> fetchCategories() async {
+    try {
+      print('📥 Fetching categories from server...');
+      final response = await _dio.get('/api/categories');
+      if (response.statusCode == 200 && response.data != null) {
+        final items = _parseListResponse(response.data, 'categories');
+        final converted = items.map((item) => _convertCategoryFromServer(item)).toList();
+        print('✅ Fetched ${converted.length} categories from server');
+        return converted;
+      }
+      return [];
+    } catch (e) {
+      print('❌ Error fetching categories from server: $e');
+      return [];
+    }
+  }
+
+  /// Fetch all savings goals from server
+  Future<List<Map<String, dynamic>>> fetchSavingsGoals() async {
+    try {
+      print('📥 Fetching savings goals from server...');
+      final response = await _dio.get('/api/savings_goals');
+      if (response.statusCode == 200 && response.data != null) {
+        final items = _parseListResponse(response.data, 'savings_goals');
+        final converted = items.map((item) => _convertSavingsGoalFromServer(item)).toList();
+        print('✅ Fetched ${converted.length} savings goals from server');
+        return converted;
+      }
+      return [];
+    } catch (e) {
+      print('❌ Error fetching savings goals from server: $e');
+      return [];
+    }
+  }
+
+  /// Fetch all recurring transactions from server
+  Future<List<Map<String, dynamic>>> fetchRecurringTransactions() async {
+    try {
+      print('📥 Fetching recurring transactions from server...');
+      final response = await _dio.get('/api/recurring_transactions');
+      if (response.statusCode == 200 && response.data != null) {
+        final items = _parseListResponse(response.data, 'recurring_transactions');
+        final converted = items.map((item) => _convertRecurringTransactionFromServer(item)).toList();
+        print('✅ Fetched ${converted.length} recurring transactions from server');
+        return converted;
+      }
+      return [];
+    } catch (e) {
+      print('❌ Error fetching recurring transactions from server: $e');
+      return [];
+    }
+  }
+
   /// Delete operations with proper error handling
   Future<bool> deleteAccount(String accountId) async {
     try {
@@ -627,6 +972,46 @@ class EnhancedApiService {
       return response.statusCode == 200 || response.statusCode == 204;
     } catch (e) {
       print('❌ Error deleting liability: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteBudget(String budgetId) async {
+    try {
+      final response = await _dio.delete('/budgets/$budgetId');
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      print('❌ Error deleting budget: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteCategory(String categoryId) async {
+    try {
+      final response = await _dio.delete('/categories/$categoryId');
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      print('❌ Error deleting category: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteSavingsGoal(String goalId) async {
+    try {
+      final response = await _dio.delete('/savings_goals/$goalId');
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      print('❌ Error deleting savings goal: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteRecurringTransaction(String rtId) async {
+    try {
+      final response = await _dio.delete('/recurring_transactions/$rtId');
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      print('❌ Error deleting recurring transaction: $e');
       return false;
     }
   }

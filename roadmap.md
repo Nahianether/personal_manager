@@ -59,8 +59,8 @@
 - [x] JSON backup export with metadata envelope & share via share_plus
 - [x] Import from CSV (auto-detects transactions/accounts/generic format)
 - [x] Data restore from JSON backup file
-- [ ] Cloud backup (Google Drive / local file backup)
-- [ ] Scheduled auto-backup
+- [x] Local file backup (save to user-chosen directory)
+- [x] Scheduled auto-backup (daily/weekly via workmanager)
 
 ### 2. Savings Goals
 - [x] Create savings goals with target amount and deadline
@@ -68,29 +68,28 @@
 - [x] Track progress with visual indicators (progress bars, percentage, days remaining)
 - [x] Auto-contribute from recurring transactions
 
-### 4. Financial Insights & AI
+### 3. Financial Insights & AI
 - [x] Monthly spending summary with trends
 - [x] Category spending analysis over time
 - [x] Smart budget suggestions based on history
 - [x] Unusual spending alerts
 
-### 5. Calendar Integration
-- [ ] Calendar view for transactions, tasks, and bills
-- [ ] Daily/weekly/monthly views
-- [ ] Event scheduling
+### 4. Calendar Integration
+- [x] Calendar view for transactions, recurring items, liabilities, goals, and loans
+- [x] Daily/weekly/monthly views (table_calendar with format toggle)
+- [x] Color-coded event markers with legend
 
-### 6. Cloud Synchronization
-- [ ] Real-time sync between devices
-- [ ] Conflict resolution
-- [ ] Offline queue with auto-sync on reconnect
-- [ ] Sync status indicators
+### 5. Cloud Synchronization
+- [x] Improved polling sync (2-minute interval)
+- [x] Timestamp-based conflict resolution (server_updated_at)
+- [x] Offline queue with auto-sync on reconnect (all 8 entity types)
+- [x] Sync for budgets, categories, savings goals, recurring transactions (new)
+- [x] Backend CRUD for all synced entity types
 
-### 8. UI/UX Enhancements
+### 6. UI/UX Enhancements
 - [x] Dashboard widgets (Recent Transactions, Savings Goals sections)
 - [x] Search across all data (accounts, transactions, loans, liabilities, savings goals)
 - [x] Batch operations (multi-select delete on transactions and accounts)
-- [ ] Onboarding flow for new users
-- [ ] Biometric lock (fingerprint/face)
 
 ---
 

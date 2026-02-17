@@ -30,6 +30,7 @@ import 'notifications_screen.dart';
 import 'dashboard_customization_screen.dart';
 import 'search_screen.dart';
 import 'insights_screen.dart';
+import 'calendar_screen.dart';
 import '../models/dashboard_config.dart';
 import '../providers/dashboard_config_provider.dart';
 
@@ -181,6 +182,14 @@ class DashboardTab extends ConsumerWidget {
               titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
             ),
             actions: [
+              IconButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CalendarScreen()),
+                ),
+                icon: const Icon(Icons.calendar_month_rounded),
+                tooltip: 'Calendar',
+              ),
               IconButton(
                 onPressed: () => Navigator.push(
                   context,

@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:workmanager/workmanager.dart';
 import 'providers/theme_provider.dart';
 import 'providers/sync_provider.dart';
 import 'providers/auth_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/signin_screen.dart';
 import 'screens/auth_splash_screen.dart';
+import 'services/auto_backup_service.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  Workmanager().initialize(autoBackupCallbackDispatcher, isInDebugMode: false);
   runApp(
     const ProviderScope(
       child: MyApp(),

@@ -69,7 +69,7 @@ class DatabaseService {
     try {
       final db = await openDatabase(
         path,
-        version: 13,
+        version: 14,
         onCreate: _createTables,
         onUpgrade: _upgradeDatabase,
       );
@@ -100,7 +100,7 @@ class DatabaseService {
           // Create a fresh database
           final db = await openDatabase(
             path,
-            version: 13,
+            version: 14,
             onCreate: _createTables,
             onUpgrade: _upgradeDatabase,
           );
@@ -145,7 +145,8 @@ class DatabaseService {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         sync_status TEXT NOT NULL DEFAULT 'pending',
-        last_synced_at TEXT
+        last_synced_at TEXT,
+        server_updated_at TEXT
       )
     ''');
 
@@ -224,7 +225,12 @@ class DatabaseService {
         icon_code_point INTEGER NOT NULL,
         color_value INTEGER NOT NULL,
         is_default INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        user_id TEXT NOT NULL DEFAULT '',
+        updated_at TEXT,
+        sync_status TEXT NOT NULL DEFAULT 'synced',
+        last_synced_at TEXT,
+        server_updated_at TEXT
       )
     ''');
 
@@ -243,7 +249,8 @@ class DatabaseService {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         sync_status TEXT NOT NULL DEFAULT 'pending',
-        last_synced_at TEXT
+        last_synced_at TEXT,
+        server_updated_at TEXT
       )
     ''');
 
@@ -266,7 +273,8 @@ class DatabaseService {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         sync_status TEXT NOT NULL DEFAULT 'pending',
-        last_synced_at TEXT
+        last_synced_at TEXT,
+        server_updated_at TEXT
       )
     ''');
 
@@ -286,7 +294,8 @@ class DatabaseService {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         sync_status TEXT NOT NULL DEFAULT 'pending',
-        last_synced_at TEXT
+        last_synced_at TEXT,
+        server_updated_at TEXT
       )
     ''');
 
@@ -420,7 +429,8 @@ class DatabaseService {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
           sync_status TEXT NOT NULL DEFAULT 'pending',
-          last_synced_at TEXT
+          last_synced_at TEXT,
+          server_updated_at TEXT
         )
       ''');
     }
@@ -444,7 +454,8 @@ class DatabaseService {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
           sync_status TEXT NOT NULL DEFAULT 'pending',
-          last_synced_at TEXT
+          last_synced_at TEXT,
+          server_updated_at TEXT
         )
       ''');
     }
@@ -472,7 +483,8 @@ class DatabaseService {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
           sync_status TEXT NOT NULL DEFAULT 'pending',
-          last_synced_at TEXT
+          last_synced_at TEXT,
+          server_updated_at TEXT
         )
       ''');
     }
@@ -481,6 +493,35 @@ class DatabaseService {
       await db.execute(
         'ALTER TABLE recurring_transactions ADD COLUMN savings_goal_id TEXT'
       );
+    }
+
+    if (oldVersion < 14) {
+      // Add server_updated_at for timestamp-based conflict resolution
+      for (final table in [
+        'accounts', 'transactions', 'loans', 'liabilities',
+        'budgets', 'recurring_transactions', 'savings_goals',
+      ]) {
+        try {
+          await db.execute('ALTER TABLE $table ADD COLUMN server_updated_at TEXT');
+        } catch (_) {} // Column may already exist
+      }
+
+      // Add sync columns to categories table (was missing)
+      try {
+        await db.execute("ALTER TABLE categories ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'synced'");
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE categories ADD COLUMN last_synced_at TEXT');
+      } catch (_) {}
+      try {
+        await db.execute("ALTER TABLE categories ADD COLUMN user_id TEXT NOT NULL DEFAULT ''");
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE categories ADD COLUMN updated_at TEXT');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE categories ADD COLUMN server_updated_at TEXT');
+      } catch (_) {}
     }
   }
 
@@ -1462,6 +1503,187 @@ class DatabaseService {
         'is_historical_entry': (isHistorical == true || isHistorical == 1) ? 1 : 0,
         'account_id': data['accountId'],
         'transaction_id': data['transactionId'],
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Upsert budget from server. Skips if local item has pending changes.
+  Future<void> upsertBudgetFromServer(Map<String, dynamic> data, String userId) async {
+    final db = await database;
+    final id = data['id']?.toString();
+    if (id == null) return;
+
+    final existing = await db.query(
+      'budgets',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    if (existing.isNotEmpty && existing.first['sync_status'] == 'pending') {
+      // Compare timestamps for conflict resolution
+      final localUpdated = existing.first['updated_at']?.toString();
+      final serverUpdated = data['updatedAt']?.toString();
+      if (localUpdated != null && serverUpdated != null && localUpdated.compareTo(serverUpdated) > 0) {
+        print('⏭️ Skipping budget $id - local changes are newer');
+        return;
+      }
+    }
+
+    final now = DateTime.now().toIso8601String();
+    await db.insert(
+      'budgets',
+      {
+        'id': id,
+        'user_id': userId,
+        'category': data['category'] ?? '',
+        'amount': (data['amount'] ?? 0).toDouble(),
+        'currency': data['currency'] ?? 'BDT',
+        'period': data['period'] ?? 'monthly',
+        'created_at': data['createdAt'] ?? now,
+        'updated_at': data['updatedAt'] ?? now,
+        'sync_status': 'synced',
+        'last_synced_at': now,
+        'server_updated_at': data['updatedAt'] ?? now,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Upsert category from server. Skips if local item has pending changes.
+  Future<void> upsertCategoryFromServer(Map<String, dynamic> data, String userId) async {
+    final db = await database;
+    final id = data['id']?.toString();
+    if (id == null) return;
+
+    final existing = await db.query(
+      'categories',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    if (existing.isNotEmpty && existing.first['sync_status'] == 'pending') {
+      final localUpdated = existing.first['updated_at']?.toString();
+      final serverUpdated = data['updatedAt']?.toString();
+      if (localUpdated != null && serverUpdated != null && localUpdated.compareTo(serverUpdated) > 0) {
+        print('⏭️ Skipping category $id - local changes are newer');
+        return;
+      }
+    }
+
+    final now = DateTime.now().toIso8601String();
+    await db.insert(
+      'categories',
+      {
+        'id': id,
+        'user_id': userId,
+        'name': data['name'] ?? '',
+        'type': data['type'] ?? 'expense',
+        'icon_code_point': data['iconCodePoint'] ?? 0xe5f1,
+        'color_value': data['colorValue'] ?? 0xFF9E9E9E,
+        'is_default': (data['isDefault'] == true || data['isDefault'] == 1) ? 1 : 0,
+        'created_at': data['createdAt'] ?? now,
+        'updated_at': data['updatedAt'] ?? now,
+        'sync_status': 'synced',
+        'last_synced_at': now,
+        'server_updated_at': data['updatedAt'] ?? now,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Upsert savings goal from server. Skips if local item has pending changes.
+  Future<void> upsertSavingsGoalFromServer(Map<String, dynamic> data, String userId) async {
+    final db = await database;
+    final id = data['id']?.toString();
+    if (id == null) return;
+
+    final existing = await db.query(
+      'savings_goals',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    if (existing.isNotEmpty && existing.first['sync_status'] == 'pending') {
+      final localUpdated = existing.first['updated_at']?.toString();
+      final serverUpdated = data['updatedAt']?.toString();
+      if (localUpdated != null && serverUpdated != null && localUpdated.compareTo(serverUpdated) > 0) {
+        print('⏭️ Skipping savings goal $id - local changes are newer');
+        return;
+      }
+    }
+
+    final now = DateTime.now().toIso8601String();
+    final isCompleted = data['isCompleted'];
+    await db.insert(
+      'savings_goals',
+      {
+        'id': id,
+        'user_id': userId,
+        'name': data['name'] ?? '',
+        'target_amount': (data['targetAmount'] ?? 0).toDouble(),
+        'current_amount': (data['currentAmount'] ?? 0).toDouble(),
+        'currency': data['currency'] ?? 'BDT',
+        'target_date': data['targetDate'] ?? now,
+        'description': data['description'],
+        'account_id': data['accountId']?.toString(),
+        'priority': data['priority'] ?? 'medium',
+        'is_completed': (isCompleted == true || isCompleted == 1) ? 1 : 0,
+        'created_at': data['createdAt'] ?? now,
+        'updated_at': data['updatedAt'] ?? now,
+        'sync_status': 'synced',
+        'last_synced_at': now,
+        'server_updated_at': data['updatedAt'] ?? now,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Upsert recurring transaction from server. Skips if local item has pending changes.
+  Future<void> upsertRecurringTransactionFromServer(Map<String, dynamic> data, String userId) async {
+    final db = await database;
+    final id = data['id']?.toString();
+    if (id == null) return;
+
+    final existing = await db.query(
+      'recurring_transactions',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    if (existing.isNotEmpty && existing.first['sync_status'] == 'pending') {
+      final localUpdated = existing.first['updated_at']?.toString();
+      final serverUpdated = data['updatedAt']?.toString();
+      if (localUpdated != null && serverUpdated != null && localUpdated.compareTo(serverUpdated) > 0) {
+        print('⏭️ Skipping recurring transaction $id - local changes are newer');
+        return;
+      }
+    }
+
+    final now = DateTime.now().toIso8601String();
+    final isActive = data['isActive'];
+    await db.insert(
+      'recurring_transactions',
+      {
+        'id': id,
+        'user_id': userId,
+        'account_id': data['accountId']?.toString() ?? '',
+        'type': data['transactionType']?.toString().split('.').last ?? data['type'] ?? 'expense',
+        'amount': (data['amount'] ?? 0).toDouble(),
+        'currency': data['currency'] ?? 'BDT',
+        'category': data['category'],
+        'description': data['description'],
+        'frequency': data['frequency'] ?? 'monthly',
+        'start_date': data['startDate'] ?? now,
+        'end_date': data['endDate'],
+        'next_due_date': data['nextDueDate'] ?? now,
+        'is_active': (isActive == true || isActive == 1) ? 1 : 0,
+        'savings_goal_id': data['savingsGoalId']?.toString(),
+        'created_at': data['createdAt'] ?? now,
+        'updated_at': data['updatedAt'] ?? now,
+        'sync_status': 'synced',
+        'last_synced_at': now,
+        'server_updated_at': data['updatedAt'] ?? now,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );

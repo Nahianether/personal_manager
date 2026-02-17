@@ -42,6 +42,38 @@ class BackupService {
     }
   }
 
+  /// Save backup to a user-chosen directory via file_picker
+  Future<String?> saveBackupToLocation() async {
+    try {
+      final data = await _databaseService.exportAllData();
+      final backup = {
+        'version': _backupVersion,
+        'appVersion': '1.0.0',
+        'createdAt': DateTime.now().toIso8601String(),
+        'data': data,
+      };
+
+      final jsonString = const JsonEncoder.withIndent('  ').convert(backup);
+
+      final selectedDirectory = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: 'Choose backup save location',
+      );
+
+      if (selectedDirectory == null) return null;
+
+      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final filePath =
+          '$selectedDirectory/personal_manager_backup_$timestamp.json';
+
+      final file = File(filePath);
+      await file.writeAsString(jsonString);
+      return filePath;
+    } catch (e) {
+      print('Backup save-to-location error: $e');
+      return null;
+    }
+  }
+
   Future<void> shareBackup(String filePath) async {
     await Share.shareXFiles(
       [XFile(filePath)],

@@ -12,6 +12,8 @@ import '../providers/currency_provider.dart';
 import '../services/database_service.dart';
 import '../services/excel_service.dart';
 import '../services/backup_service.dart';
+import '../services/auto_backup_service.dart';
+import '../providers/backup_provider.dart';
 import '../widgets/currency_picker.dart';
 import 'package:intl/intl.dart';
 
@@ -196,6 +198,14 @@ class SettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 12),
                   _buildActionRow(
                     context,
+                    Icons.save_as_outlined,
+                    'Save to Location',
+                    'Choose where to save backup file',
+                    () => _saveBackupToLocation(context, ref),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildActionRow(
+                    context,
                     Icons.restore_outlined,
                     'Restore Backup',
                     'Restore from a JSON backup file',
@@ -205,6 +215,8 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
           ),
+          const SizedBox(height: 16),
+          _buildAutoBackupCard(context, ref),
           const SizedBox(height: 16),
           Card(
             child: Padding(
@@ -410,6 +422,110 @@ class SettingsScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildAutoBackupCard(BuildContext context, WidgetRef ref) {
+    final backupState = ref.watch(backupProvider);
+    final config = backupState.config;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Auto Backup',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Enable Auto Backup'),
+              subtitle: const Text('Automatically create backups on schedule'),
+              value: config.enabled,
+              onChanged: (value) {
+                ref.read(backupProvider.notifier).setAutoBackupEnabled(value);
+              },
+            ),
+            if (config.enabled) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text(
+                    'Frequency:',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(width: 12),
+                  SegmentedButton<BackupFrequency>(
+                    segments: const [
+                      ButtonSegment(
+                        value: BackupFrequency.daily,
+                        label: Text('Daily'),
+                      ),
+                      ButtonSegment(
+                        value: BackupFrequency.weekly,
+                        label: Text('Weekly'),
+                      ),
+                    ],
+                    selected: {config.frequency},
+                    onSelectionChanged: (value) {
+                      ref
+                          .read(backupProvider.notifier)
+                          .setFrequency(value.first);
+                    },
+                  ),
+                ],
+              ),
+            ],
+            if (config.lastBackupTime != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Last auto-backup: ${DateFormat('MMM d, yyyy h:mm a').format(config.lastBackupTime!)}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveBackupToLocation(
+      BuildContext context, WidgetRef ref) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final filePath = await BackupService().saveBackupToLocation();
+      if (context.mounted) Navigator.pop(context);
+
+      if (filePath != null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Backup saved to: $filePath')),
+          );
+        }
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Backup cancelled')),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) Navigator.pop(context);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Backup failed: $e')),
+        );
+      }
+    }
   }
 
   void _showThemeSelectionDialog(BuildContext context, WidgetRef ref) {
