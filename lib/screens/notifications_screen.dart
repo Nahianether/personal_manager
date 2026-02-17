@@ -207,6 +207,8 @@ class NotificationsScreen extends ConsumerWidget {
         return Icons.account_balance_wallet_rounded;
       case NotificationType.loanReminder:
         return Icons.person_rounded;
+      case NotificationType.unusualSpending:
+        return Icons.trending_up_rounded;
     }
   }
 

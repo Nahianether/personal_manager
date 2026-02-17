@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../models/transaction.dart';
+import '../models/budget.dart';
 import '../services/database_service.dart';
 import 'account_provider.dart';
 
@@ -533,6 +534,266 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
       'income': income,
       'expense': expense,
     };
+  }
+
+  // Monthly spending summary with trend change percentages
+  List<Map<String, dynamic>> getMonthlySpendingSummary() {
+    final now = DateTime.now();
+    final List<Map<String, dynamic>> summary = [];
+
+    for (int i = 5; i >= 0; i--) {
+      final monthDate = DateTime(now.year, now.month - i, 1);
+      final startOfMonth = DateTime(monthDate.year, monthDate.month, 1);
+      final endOfMonth = DateTime(monthDate.year, monthDate.month + 1, 0);
+
+      final monthTransactions = state.transactions.where((t) =>
+          t.date.isAfter(startOfMonth.subtract(const Duration(days: 1))) &&
+          t.date.isBefore(endOfMonth.add(const Duration(days: 1)))).toList();
+
+      double income = monthTransactions
+          .where((t) => t.type == TransactionType.income)
+          .fold(0.0, (sum, t) => sum + t.amount);
+
+      double expense = monthTransactions
+          .where((t) => t.type == TransactionType.expense)
+          .fold(0.0, (sum, t) => sum + t.amount);
+
+      double? changePercent;
+      if (summary.isNotEmpty) {
+        final prevExpense = summary.last['expense'] as double;
+        if (prevExpense > 0) {
+          changePercent = ((expense - prevExpense) / prevExpense) * 100;
+        }
+      }
+
+      summary.add({
+        'month': monthDate,
+        'income': income,
+        'expense': expense,
+        'net': income - expense,
+        'changePercent': changePercent,
+      });
+    }
+
+    return summary;
+  }
+
+  // Category spending over last 6 months (top 5 categories)
+  Map<String, List<Map<String, dynamic>>> getCategorySpendingOverTime() {
+    final now = DateTime.now();
+
+    // First, collect all category totals to find top 5
+    final Map<String, double> totalByCategory = {};
+    final Map<String, List<Map<String, dynamic>>> categoryMonthly = {};
+
+    for (int i = 5; i >= 0; i--) {
+      final monthDate = DateTime(now.year, now.month - i, 1);
+      final startOfMonth = DateTime(monthDate.year, monthDate.month, 1);
+      final endOfMonth = DateTime(monthDate.year, monthDate.month + 1, 0);
+
+      final monthExpenses = state.transactions.where((t) =>
+          t.type == TransactionType.expense &&
+          t.date.isAfter(startOfMonth.subtract(const Duration(days: 1))) &&
+          t.date.isBefore(endOfMonth.add(const Duration(days: 1)))).toList();
+
+      final Map<String, double> monthCategoryTotals = {};
+      for (final t in monthExpenses) {
+        final cat = t.category ?? 'Other';
+        monthCategoryTotals[cat] = (monthCategoryTotals[cat] ?? 0) + t.amount;
+        totalByCategory[cat] = (totalByCategory[cat] ?? 0) + t.amount;
+      }
+
+      // Store data for all categories for this month
+      for (final entry in monthCategoryTotals.entries) {
+        categoryMonthly.putIfAbsent(entry.key, () => []);
+        categoryMonthly[entry.key]!.add({
+          'month': monthDate,
+          'amount': entry.value,
+        });
+      }
+
+      // Fill in zeroes for categories that had no spending this month
+      for (final cat in categoryMonthly.keys) {
+        if (!monthCategoryTotals.containsKey(cat)) {
+          categoryMonthly[cat]!.add({
+            'month': monthDate,
+            'amount': 0.0,
+          });
+        }
+      }
+    }
+
+    // Get top 5 categories by total spending
+    final sortedCategories = totalByCategory.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final top5 = sortedCategories.take(5).map((e) => e.key).toSet();
+
+    // Filter to only top 5
+    categoryMonthly.removeWhere((key, _) => !top5.contains(key));
+
+    return categoryMonthly;
+  }
+
+  // Smart budget suggestions based on spending history
+  List<Map<String, dynamic>> getSmartBudgetSuggestions(List<Budget> budgets) {
+    final now = DateTime.now();
+    final suggestions = <Map<String, dynamic>>[];
+    final budgetedCategories = budgets.map((b) => b.category).toSet();
+
+    // Calculate 3-month average spending per category
+    final Map<String, List<double>> categoryMonthlySpending = {};
+
+    for (int i = 1; i <= 3; i++) {
+      final monthDate = DateTime(now.year, now.month - i, 1);
+      final startOfMonth = DateTime(monthDate.year, monthDate.month, 1);
+      final endOfMonth = DateTime(monthDate.year, monthDate.month + 1, 0);
+
+      final monthExpenses = state.transactions.where((t) =>
+          t.type == TransactionType.expense &&
+          t.date.isAfter(startOfMonth.subtract(const Duration(days: 1))) &&
+          t.date.isBefore(endOfMonth.add(const Duration(days: 1)))).toList();
+
+      final Map<String, double> monthTotals = {};
+      for (final t in monthExpenses) {
+        final cat = t.category ?? 'Other';
+        monthTotals[cat] = (monthTotals[cat] ?? 0) + t.amount;
+      }
+
+      for (final entry in monthTotals.entries) {
+        categoryMonthlySpending.putIfAbsent(entry.key, () => []);
+        categoryMonthlySpending[entry.key]!.add(entry.value);
+      }
+    }
+
+    for (final entry in categoryMonthlySpending.entries) {
+      final category = entry.key;
+      final monthlyAmounts = entry.value;
+      final average = monthlyAmounts.fold(0.0, (s, v) => s + v) / 3;
+
+      if (average < 1) continue; // Skip negligible categories
+
+      if (!budgetedCategories.contains(category)) {
+        // No budget exists — suggest creating one
+        final suggested = (average * 1.1).ceilToDouble(); // 10% buffer
+        suggestions.add({
+          'category': category,
+          'suggestion': 'Create a monthly budget of ${suggested.toStringAsFixed(0)} based on your 3-month average',
+          'suggestedAmount': suggested,
+          'currentBudget': null,
+          'averageSpending': average,
+        });
+      } else {
+        // Budget exists — check if it needs adjustment
+        final budget = budgets.firstWhere((b) => b.category == category);
+        final ratio = average / budget.amount;
+
+        if (ratio > 1.1) {
+          // Consistently over budget
+          final suggested = (average * 1.1).ceilToDouble();
+          suggestions.add({
+            'category': category,
+            'suggestion': 'Increase budget from ${budget.amount.toStringAsFixed(0)} to ${suggested.toStringAsFixed(0)} — you regularly exceed it',
+            'suggestedAmount': suggested,
+            'currentBudget': budget.amount,
+            'averageSpending': average,
+          });
+        } else if (ratio < 0.5) {
+          // Significantly under budget
+          final suggested = (average * 1.2).ceilToDouble();
+          suggestions.add({
+            'category': category,
+            'suggestion': 'Reduce budget from ${budget.amount.toStringAsFixed(0)} to ${suggested.toStringAsFixed(0)} — you use less than half',
+            'suggestedAmount': suggested,
+            'currentBudget': budget.amount,
+            'averageSpending': average,
+          });
+        }
+      }
+    }
+
+    // Sort: unbudgeted first, then by average spending descending
+    suggestions.sort((a, b) {
+      final aHasBudget = a['currentBudget'] != null ? 1 : 0;
+      final bHasBudget = b['currentBudget'] != null ? 1 : 0;
+      if (aHasBudget != bHasBudget) return aHasBudget - bHasBudget;
+      return (b['averageSpending'] as double).compareTo(a['averageSpending'] as double);
+    });
+
+    return suggestions;
+  }
+
+  // Unusual spending alerts: current month vs 3-month rolling average
+  List<Map<String, dynamic>> getUnusualSpendingAlerts() {
+    final now = DateTime.now();
+    final alerts = <Map<String, dynamic>>[];
+
+    // Current month spending by category
+    final startOfCurrentMonth = DateTime(now.year, now.month, 1);
+    final endOfCurrentMonth = DateTime(now.year, now.month + 1, 0);
+
+    final currentMonthExpenses = state.transactions.where((t) =>
+        t.type == TransactionType.expense &&
+        t.date.isAfter(startOfCurrentMonth.subtract(const Duration(days: 1))) &&
+        t.date.isBefore(endOfCurrentMonth.add(const Duration(days: 1)))).toList();
+
+    final Map<String, double> currentByCategory = {};
+    for (final t in currentMonthExpenses) {
+      final cat = t.category ?? 'Other';
+      currentByCategory[cat] = (currentByCategory[cat] ?? 0) + t.amount;
+    }
+
+    // 3-month average by category (previous 3 months, excluding current)
+    final Map<String, double> avgByCategory = {};
+    final Map<String, int> monthCountByCategory = {};
+
+    for (int i = 1; i <= 3; i++) {
+      final monthDate = DateTime(now.year, now.month - i, 1);
+      final startOfMonth = DateTime(monthDate.year, monthDate.month, 1);
+      final endOfMonth = DateTime(monthDate.year, monthDate.month + 1, 0);
+
+      final monthExpenses = state.transactions.where((t) =>
+          t.type == TransactionType.expense &&
+          t.date.isAfter(startOfMonth.subtract(const Duration(days: 1))) &&
+          t.date.isBefore(endOfMonth.add(const Duration(days: 1)))).toList();
+
+      final Map<String, double> monthTotals = {};
+      for (final t in monthExpenses) {
+        final cat = t.category ?? 'Other';
+        monthTotals[cat] = (monthTotals[cat] ?? 0) + t.amount;
+      }
+
+      for (final entry in monthTotals.entries) {
+        avgByCategory[entry.key] = (avgByCategory[entry.key] ?? 0) + entry.value;
+        monthCountByCategory[entry.key] = (monthCountByCategory[entry.key] ?? 0) + 1;
+      }
+    }
+
+    // Calculate averages
+    for (final key in avgByCategory.keys) {
+      avgByCategory[key] = avgByCategory[key]! / 3;
+    }
+
+    // Compare current vs average
+    for (final entry in currentByCategory.entries) {
+      final avg = avgByCategory[entry.key];
+      if (avg == null || avg < 1) continue; // No history or negligible
+
+      final percentAbove = ((entry.value - avg) / avg) * 100;
+      if (percentAbove > 50) {
+        alerts.add({
+          'category': entry.key,
+          'currentAmount': entry.value,
+          'averageAmount': avg,
+          'percentAbove': percentAbove,
+        });
+      }
+    }
+
+    // Sort by percentAbove descending
+    alerts.sort((a, b) =>
+        (b['percentAbove'] as double).compareTo(a['percentAbove'] as double));
+
+    return alerts;
   }
 
   // Get last 6 months data for chart

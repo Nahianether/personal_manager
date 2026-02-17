@@ -68,31 +68,18 @@
 - [x] Track progress with visual indicators (progress bars, percentage, days remaining)
 - [x] Auto-contribute from recurring transactions
 
-### 3. Bill Reminders & Auto-Pay
-- [ ] Scheduled bill reminders with push notifications
-- [ ] Bill history and payment tracking
-- [ ] Auto-categorize recurring bills
-- [ ] Bill calendar view
-
 ### 4. Financial Insights & AI
-- [ ] Monthly spending summary with trends
-- [ ] Category spending analysis over time
-- [ ] Smart budget suggestions based on history
-- [ ] Unusual spending alerts
+- [x] Monthly spending summary with trends
+- [x] Category spending analysis over time
+- [x] Smart budget suggestions based on history
+- [x] Unusual spending alerts
 
-### 5. Task Management
-- [ ] Create/edit/delete tasks with due dates
-- [ ] Priority levels (high/medium/low)
-- [ ] Task categories
-- [ ] Recurring tasks
-- [ ] Calendar view integration
-
-### 6. Calendar Integration
+### 5. Calendar Integration
 - [ ] Calendar view for transactions, tasks, and bills
 - [ ] Daily/weekly/monthly views
 - [ ] Event scheduling
 
-### 7. Cloud Synchronization
+### 6. Cloud Synchronization
 - [ ] Real-time sync between devices
 - [ ] Conflict resolution
 - [ ] Offline queue with auto-sync on reconnect

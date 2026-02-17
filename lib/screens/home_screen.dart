@@ -29,6 +29,7 @@ import 'budget_screen.dart';
 import 'notifications_screen.dart';
 import 'dashboard_customization_screen.dart';
 import 'search_screen.dart';
+import 'insights_screen.dart';
 import '../models/dashboard_config.dart';
 import '../providers/dashboard_config_provider.dart';
 
@@ -75,10 +76,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final transactions = ref.read(transactionProvider).transactions;
     final budgetStatuses =
         ref.read(budgetProvider.notifier).getBudgetStatuses(transactions);
+    final unusualAlerts =
+        ref.read(transactionProvider.notifier).getUnusualSpendingAlerts();
     ref.read(notificationProvider.notifier).generateNotifications(
           liabilities: liabilities,
           budgetStatuses: budgetStatuses,
           loans: loans,
+          unusualSpendingAlerts: unusualAlerts,
         );
   }
 
@@ -177,6 +181,14 @@ class DashboardTab extends ConsumerWidget {
               titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
             ),
             actions: [
+              IconButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const InsightsScreen()),
+                ),
+                icon: const Icon(Icons.insights_rounded),
+                tooltip: 'Financial Insights',
+              ),
               IconButton(
                 onPressed: () => Navigator.push(
                   context,

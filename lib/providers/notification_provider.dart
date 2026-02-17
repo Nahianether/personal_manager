@@ -39,6 +39,7 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
     required List<Liability> liabilities,
     required List<BudgetStatus> budgetStatuses,
     required List<Loan> loans,
+    List<Map<String, dynamic>> unusualSpendingAlerts = const [],
   }) {
     state = state.copyWith(isLoading: true);
 
@@ -133,6 +134,26 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
           createdAt: now,
         ));
       }
+    }
+
+    // 7. Unusual spending alerts
+    for (final alert in unusualSpendingAlerts) {
+      final category = alert['category'] as String;
+      final current = alert['currentAmount'] as double;
+      final average = alert['averageAmount'] as double;
+      final percentAbove = alert['percentAbove'] as double;
+
+      notifications.add(AppNotification(
+        id: 'notif_${idCounter++}',
+        type: NotificationType.unusualSpending,
+        title: 'Unusual Spending: $category',
+        message:
+            'Spent ${CurrencyUtils.formatCurrency(current, 'BDT')} this month vs ${CurrencyUtils.formatCurrency(average, 'BDT')} monthly average (${percentAbove.toStringAsFixed(0)}% above normal)',
+        severity: percentAbove > 100
+            ? NotificationSeverity.critical
+            : NotificationSeverity.warning,
+        createdAt: now,
+      ));
     }
 
     // Sort: critical first, then warning, then info

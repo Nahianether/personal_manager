@@ -4,6 +4,7 @@ enum NotificationType {
   budgetWarning,
   budgetExceeded,
   loanReminder,
+  unusualSpending,
 }
 
 enum NotificationSeverity {
