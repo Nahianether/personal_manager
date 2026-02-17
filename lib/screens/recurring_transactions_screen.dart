@@ -5,6 +5,7 @@ import '../models/recurring_transaction.dart';
 import '../models/transaction.dart';
 import '../providers/recurring_transaction_provider.dart';
 import '../providers/account_provider.dart';
+import '../providers/savings_goal_provider.dart';
 import '../utils/currency_utils.dart';
 
 class RecurringTransactionsScreen extends ConsumerWidget {
@@ -14,6 +15,7 @@ class RecurringTransactionsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final rtState = ref.watch(recurringTransactionProvider);
     final accountState = ref.watch(accountProvider);
+    final goalState = ref.watch(savingsGoalProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Recurring Transactions'),
@@ -30,12 +32,18 @@ class RecurringTransactionsScreen extends ConsumerWidget {
                     final account = accountState.accounts
                         .where((a) => a.id == rt.accountId)
                         .firstOrNull;
+                    final linkedGoal = rt.savingsGoalId != null
+                        ? goalState.goals
+                            .where((g) => g.id == rt.savingsGoalId)
+                            .firstOrNull
+                        : null;
                     return _buildRecurringCard(
                       context,
                       ref,
                       rt,
                       account?.name ?? 'Unknown',
                       CurrencyUtils.getFormatter(rt.currency),
+                      linkedGoalName: linkedGoal?.name,
                     );
                   },
                 ),
@@ -82,8 +90,9 @@ class RecurringTransactionsScreen extends ConsumerWidget {
     WidgetRef ref,
     RecurringTransaction rt,
     String accountName,
-    NumberFormat formatter,
-  ) {
+    NumberFormat formatter, {
+    String? linkedGoalName,
+  }) {
     final isIncome = rt.type == TransactionType.income;
     final color = isIncome ? Colors.green : Colors.red;
     final dateFormat = DateFormat('MMM d, yyyy');
@@ -167,19 +176,49 @@ class RecurringTransactionsScreen extends ConsumerWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            _frequencyLabel(rt.frequency),
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                  color: Theme.of(context).colorScheme.onPrimaryContainer,
-                                  fontWeight: FontWeight.w600,
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.primaryContainer,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                _frequencyLabel(rt.frequency),
+                                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                            ),
+                            if (linkedGoalName != null) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.teal.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                          ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.savings_rounded, size: 12, color: Colors.teal),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      linkedGoalName,
+                                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                            color: Colors.teal,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),
@@ -258,6 +297,7 @@ class _RecurringFormSheetState extends ConsumerState<_RecurringFormSheet> {
   TransactionType _selectedType = TransactionType.expense;
   String? _selectedAccountId;
   String? _selectedCategory;
+  String? _selectedGoalId;
   RecurringFrequency _selectedFrequency = RecurringFrequency.monthly;
   DateTime _startDate = DateTime.now();
   DateTime? _endDate;
@@ -272,6 +312,7 @@ class _RecurringFormSheetState extends ConsumerState<_RecurringFormSheet> {
       _selectedType = rt.type;
       _selectedAccountId = rt.accountId;
       _selectedCategory = rt.category;
+      _selectedGoalId = rt.savingsGoalId;
       _amountController.text = rt.amount.toStringAsFixed(0);
       _descriptionController.text = rt.description ?? '';
       _selectedFrequency = rt.frequency;
@@ -407,6 +448,40 @@ class _RecurringFormSheetState extends ConsumerState<_RecurringFormSheet> {
             ),
             const SizedBox(height: 16),
 
+            // Savings Goal link
+            Builder(
+              builder: (context) {
+                final activeGoals = ref.watch(savingsGoalProvider).activeGoals;
+                if (activeGoals.isEmpty) return const SizedBox.shrink();
+                return Column(
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: _selectedGoalId,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        labelText: 'Auto-contribute to Goal (Optional)',
+                        prefixIcon: Icon(Icons.savings_rounded),
+                      ),
+                      items: [
+                        const DropdownMenuItem<String>(
+                          value: null,
+                          child: Text('None'),
+                        ),
+                        ...activeGoals.map((goal) {
+                          return DropdownMenuItem<String>(
+                            value: goal.id,
+                            child: Text(goal.name, overflow: TextOverflow.ellipsis),
+                          );
+                        }),
+                      ],
+                      onChanged: (value) => setState(() => _selectedGoalId = value),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                );
+              },
+            ),
+
             // Frequency
             Text(
               'Frequency',
@@ -516,6 +591,7 @@ class _RecurringFormSheetState extends ConsumerState<_RecurringFormSheet> {
             frequency: _selectedFrequency,
             startDate: _startDate,
             endDate: _endDate,
+            savingsGoalId: _selectedGoalId,
           );
     } else {
       ref.read(recurringTransactionProvider.notifier).addRecurringTransaction(
@@ -527,6 +603,7 @@ class _RecurringFormSheetState extends ConsumerState<_RecurringFormSheet> {
             frequency: _selectedFrequency,
             startDate: _startDate,
             endDate: _endDate,
+            savingsGoalId: _selectedGoalId,
           );
     }
 

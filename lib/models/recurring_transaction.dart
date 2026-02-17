@@ -15,6 +15,7 @@ class RecurringTransaction {
   final DateTime? endDate;
   final DateTime nextDueDate;
   final bool isActive;
+  final String? savingsGoalId;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -31,6 +32,7 @@ class RecurringTransaction {
     this.endDate,
     required this.nextDueDate,
     this.isActive = true,
+    this.savingsGoalId,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -54,6 +56,7 @@ class RecurringTransaction {
       endDate: json['endDate'] != null ? DateTime.parse(json['endDate']) : null,
       nextDueDate: DateTime.parse(json['nextDueDate']),
       isActive: json['isActive'] ?? true,
+      savingsGoalId: json['savingsGoalId'],
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
     );
@@ -73,6 +76,7 @@ class RecurringTransaction {
       'endDate': endDate?.toIso8601String(),
       'nextDueDate': nextDueDate.toIso8601String(),
       'isActive': isActive,
+      'savingsGoalId': savingsGoalId,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -91,6 +95,7 @@ class RecurringTransaction {
     DateTime? endDate,
     DateTime? nextDueDate,
     bool? isActive,
+    String? savingsGoalId,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -107,6 +112,7 @@ class RecurringTransaction {
       endDate: endDate ?? this.endDate,
       nextDueDate: nextDueDate ?? this.nextDueDate,
       isActive: isActive ?? this.isActive,
+      savingsGoalId: savingsGoalId ?? this.savingsGoalId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

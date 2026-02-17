@@ -4,6 +4,7 @@ import '../models/recurring_transaction.dart';
 import '../models/transaction.dart';
 import '../services/database_service.dart';
 import 'transaction_provider.dart';
+import 'savings_goal_provider.dart';
 
 class RecurringTransactionState {
   final List<RecurringTransaction> items;
@@ -57,6 +58,7 @@ class RecurringTransactionNotifier extends StateNotifier<RecurringTransactionSta
     required RecurringFrequency frequency,
     required DateTime startDate,
     DateTime? endDate,
+    String? savingsGoalId,
   }) async {
     try {
       final now = DateTime.now();
@@ -73,6 +75,7 @@ class RecurringTransactionNotifier extends StateNotifier<RecurringTransactionSta
         endDate: endDate,
         nextDueDate: startDate,
         isActive: true,
+        savingsGoalId: savingsGoalId,
         createdAt: now,
         updatedAt: now,
       );
@@ -99,6 +102,7 @@ class RecurringTransactionNotifier extends StateNotifier<RecurringTransactionSta
     required RecurringFrequency frequency,
     required DateTime startDate,
     DateTime? endDate,
+    String? savingsGoalId,
   }) async {
     try {
       final existing = state.items.firstWhere((rt) => rt.id == id);
@@ -112,6 +116,7 @@ class RecurringTransactionNotifier extends StateNotifier<RecurringTransactionSta
         frequency: frequency,
         startDate: startDate,
         endDate: endDate,
+        savingsGoalId: savingsGoalId,
         updatedAt: DateTime.now(),
       );
 
@@ -193,6 +198,14 @@ class RecurringTransactionNotifier extends StateNotifier<RecurringTransactionSta
               : '(Recurring)',
           date: dueDate,
         );
+
+        // Auto-contribute to linked savings goal
+        if (rt.savingsGoalId != null) {
+          await _ref.read(savingsGoalProvider.notifier).addToGoal(
+            rt.savingsGoalId!,
+            rt.amount,
+          );
+        }
 
         dueDate = _calculateNextDueDate(dueDate, rt.frequency);
         generated = true;

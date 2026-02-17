@@ -66,7 +66,7 @@
 - [x] Create savings goals with target amount and deadline
 - [x] Link goals to accounts
 - [x] Track progress with visual indicators (progress bars, percentage, days remaining)
-- [ ] Auto-contribute from recurring transactions
+- [x] Auto-contribute from recurring transactions
 
 ### 3. Bill Reminders & Auto-Pay
 - [ ] Scheduled bill reminders with push notifications

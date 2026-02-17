@@ -69,7 +69,7 @@ class DatabaseService {
     try {
       final db = await openDatabase(
         path,
-        version: 12,
+        version: 13,
         onCreate: _createTables,
         onUpgrade: _upgradeDatabase,
       );
@@ -100,7 +100,7 @@ class DatabaseService {
           // Create a fresh database
           final db = await openDatabase(
             path,
-            version: 12,
+            version: 13,
             onCreate: _createTables,
             onUpgrade: _upgradeDatabase,
           );
@@ -262,6 +262,7 @@ class DatabaseService {
         end_date TEXT,
         next_due_date TEXT NOT NULL,
         is_active INTEGER NOT NULL DEFAULT 1,
+        savings_goal_id TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         sync_status TEXT NOT NULL DEFAULT 'pending',
@@ -456,7 +457,7 @@ class DatabaseService {
 
     if (oldVersion < 12) {
       await db.execute('''
-        CREATE TABLE savings_goals (
+        CREATE TABLE IF NOT EXISTS savings_goals (
           id TEXT PRIMARY KEY,
           user_id TEXT NOT NULL,
           name TEXT NOT NULL,
@@ -474,6 +475,12 @@ class DatabaseService {
           last_synced_at TEXT
         )
       ''');
+    }
+
+    if (oldVersion < 13) {
+      await db.execute(
+        'ALTER TABLE recurring_transactions ADD COLUMN savings_goal_id TEXT'
+      );
     }
   }
 
@@ -1215,6 +1222,7 @@ class DatabaseService {
         'endDate': maps[i]['end_date'],
         'nextDueDate': maps[i]['next_due_date'],
         'isActive': maps[i]['is_active'] == 1,
+        'savingsGoalId': maps[i]['savings_goal_id'],
         'createdAt': maps[i]['created_at'],
         'updatedAt': maps[i]['updated_at'],
       });
@@ -1241,6 +1249,7 @@ class DatabaseService {
         'end_date': rt.endDate?.toIso8601String(),
         'next_due_date': rt.nextDueDate.toIso8601String(),
         'is_active': rt.isActive ? 1 : 0,
+        'savings_goal_id': rt.savingsGoalId,
         'created_at': rt.createdAt.toIso8601String(),
         'updated_at': rt.updatedAt.toIso8601String(),
         'sync_status': 'pending',
@@ -1269,6 +1278,7 @@ class DatabaseService {
         'end_date': rt.endDate?.toIso8601String(),
         'next_due_date': rt.nextDueDate.toIso8601String(),
         'is_active': rt.isActive ? 1 : 0,
+        'savings_goal_id': rt.savingsGoalId,
         'updated_at': rt.updatedAt.toIso8601String(),
         'sync_status': 'pending',
       },
